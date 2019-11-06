@@ -1,1 +1,3 @@
+Click==7.0
 JPype1==0.7.0
+ujson==1.35
