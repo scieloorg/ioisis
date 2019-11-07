@@ -16,10 +16,14 @@ from construct import Adapter, Array, Bytes, Check, CheckError, Computed, \
 
 DEFAULT_FIELD_TERMINATOR = b"#"
 DEFAULT_RECORD_TERMINATOR = b"#"
+DEFAULT_ISO_ENCODING = "cp1252"
 
 # Only for building
 DEFAULT_LINE_LEN = 80
 DEFAULT_NEWLINE = b"\n"
+
+
+clear_cr_lf = partial(re.compile(b"[\r\n]").sub, b"")
 
 
 class IntInASCII(Adapter):
@@ -99,7 +103,7 @@ def line_split_restreamed(
     size_extra = len(newline)
     return RestreamedBuildLastIncomplete(
         subcon,
-        decoder=partial(re.compile(b"[\r\n]").sub, b""),
+        decoder=clear_cr_lf,
         decoderunit=1,
         encoder=lambda chunk: chunk + newline,
         encoderunit=line_len,
@@ -180,7 +184,19 @@ def create_record_struct(
 DEFAULT_RECORD_STRUCT = line_split_restreamed(create_record_struct())
 
 
-def con2dict(con, encoding="cp1252"):
+def iter_con(iso_file, record_struct=DEFAULT_RECORD_STRUCT):
+    """Generator of records as parsed construct objects."""
+    while clear_cr_lf(iso_file.peek(5)):  # Has another record
+        yield record_struct.parse_stream(iso_file)
+
+
+def iter_records(iso_file, encoding=DEFAULT_ISO_ENCODING, **kwargs):
+    """Generator of records as dictionaries."""
+    for con in iter_con(iso_file, **kwargs):
+        yield con2dict(con, encoding=encoding)
+
+
+def con2dict(con, encoding=DEFAULT_ISO_ENCODING):
     """Parsed construct object to dictionary record converter."""
     result = defaultdict(list)
     for dir_entry, field_value in zip(con.dir, con.fields):
