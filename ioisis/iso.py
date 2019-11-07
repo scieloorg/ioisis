@@ -7,6 +7,7 @@ https://wiki.bireme.org/pt/img_auth.php/5/5f/2709BR.pdf
 from collections import defaultdict
 from contextlib import closing
 from functools import partial
+from itertools import accumulate
 import re
 
 from construct import Adapter, Array, Bytes, Check, CheckError, Computed, \
@@ -17,6 +18,12 @@ from construct import Adapter, Array, Bytes, Check, CheckError, Computed, \
 DEFAULT_FIELD_TERMINATOR = b"#"
 DEFAULT_RECORD_TERMINATOR = b"#"
 DEFAULT_ISO_ENCODING = "cp1252"
+
+LABEL_LEN = 24
+TAG_LEN = 3
+DEFAULT_LEN_LEN = 4
+DEFAULT_POS_LEN = 5
+DEFAULT_CUSTOM_LEN = 0
 
 # Only for building
 DEFAULT_LINE_LEN = 80
@@ -116,13 +123,36 @@ def create_record_struct(
     record_terminator=DEFAULT_RECORD_TERMINATOR,
 ):
     """Create a construct parser/builder for a whole record object."""
+    ft_len = len(field_terminator)
+    rt_len = len(record_terminator)
     return Struct(
+        # Build time pre-computed information
+        "_build_len_list" / Computed(
+            lambda this: None if "fields" not in this else
+                [len(field) + ft_len for field in this.fields]
+        ),
+        "_build_pos_list" / Computed(
+            lambda this: None if "fields" not in this else
+                list(accumulate([0] + this._build_len_list))
+        ),
+        "_build_dir_len" / Computed(
+            lambda this: None if "fields" not in this else
+                len(this.fields) * (
+                    TAG_LEN
+                    + this.get("len_len", DEFAULT_LEN_LEN)
+                    + this.get("pos_len", DEFAULT_POS_LEN)
+                    + this.get("custom_len", DEFAULT_CUSTOM_LEN)
+                )
+        ),
+
         # Record label/header
         Embedded(Struct(
             "total_len" / Rebuild(IntInASCII(Bytes(5)),
-                lambda this: 26  # Label and dir/record terminators length
-                    + 13 * len(this.fields)  # Dir + field terminators length
-                    + sum(map(len, this.fields))  # Fields length
+                lambda this: LABEL_LEN
+                    + this._build_dir_len
+                    + ft_len
+                    + this._build_pos_list[-1]  # Fields length
+                    + rt_len
             ),
             "status" / Default(Bytes(1), b"0"),
             "type" / Default(Bytes(1), b"0"),
@@ -131,30 +161,32 @@ def create_record_struct(
             "indicator_count" / Default(IntInASCII(Bytes(1)), 0),
             "identifier_len" / Default(IntInASCII(Bytes(1)), 0),
             "base_addr" / Rebuild(IntInASCII(Bytes(5)),
-                                  lambda this: 25 + 12 * len(this.fields)),
+                                  LABEL_LEN + this._build_dir_len
+                                            + ft_len),
             "custom_3" / Default(Bytes(3), b"000"),
             Embedded(Struct(  # Directory entry map
-                "len_len" / Default(IntInASCII(Bytes(1)), 4),
-                "pos_len" / Default(IntInASCII(Bytes(1)), 5),
-                "custom_len" / Default(IntInASCII(Bytes(1)), 0),
+                "len_len" / Default(IntInASCII(Bytes(1)), DEFAULT_LEN_LEN),
+                "pos_len" / Default(IntInASCII(Bytes(1)), DEFAULT_POS_LEN),
+                "custom_len" / Default(IntInASCII(Bytes(1)),
+                                       DEFAULT_CUSTOM_LEN),
                 "reserved" / Default(Bytes(1), b"0"),
             )),
         )),
-        "num_fields" / Computed((this.base_addr - 25) // 12),
+        "num_fields" / Computed(
+            (this.base_addr - LABEL_LEN - ft_len) //
+            (TAG_LEN + this.len_len + this.pos_len + this.custom_len)
+        ),
         Check(lambda this:
             "fields" not in this or this.num_fields == len(this.fields)
         ),
 
         # Directory
         "dir" / Struct(
-            "tag" / Bytes(3),
+            "tag" / Bytes(TAG_LEN),
             "len" / Rebuild(IntInASCII(Bytes(this._.len_len)),
-                            lambda this: len(this._.fields[this._index]) +
-                                         len(field_terminator)),
+                            lambda this: this._._build_len_list[this._index]),
             "pos" / Rebuild(IntInASCII(Bytes(this._.pos_len)),
-                            lambda this:  # TODO: make something more efficient
-                                sum(map(len, this._.fields[:this._index])) +
-                                len(field_terminator) * this._index),
+                            lambda this: this._._build_pos_list[this._index]),
             "custom" / Rebuild(Bytes(this._.custom_len),
                                b"0" * this._.custom_len),
         )[this.num_fields],
