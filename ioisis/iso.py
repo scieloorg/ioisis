@@ -203,3 +203,20 @@ def con2dict(con, encoding=DEFAULT_ISO_ENCODING):
         tag = dir_entry.tag.lstrip(b"0").decode("ascii") or b"0"
         result[tag].append(field_value.decode(encoding))
     return result
+
+
+def dict2bytes(
+    data,
+    encoding=DEFAULT_ISO_ENCODING,
+    record_struct=DEFAULT_RECORD_STRUCT,
+):
+    """Encode/build the raw ISO string from a single dict record."""
+    record_dict = {
+        "dir": [],
+        "fields": [],
+    }
+    for k, values in data.items():
+        for v in values:
+            record_dict["dir"].append({"tag": k.encode("ascii").zfill(3)})
+            record_dict["fields"].append(v.encode(encoding))
+    return record_struct.build(record_dict)
