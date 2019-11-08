@@ -1,12 +1,43 @@
 from collections import defaultdict
 from contextlib import closing
+from hashlib import sha256
+import os
+from urllib.request import urlopen
 
 from .java import generator_blocking_process, jvm
 
 
+BRUMA_URL = "https://github.com/scieloorg/isis2json/raw/def7327/lib/Bruma.jar"
+BRUMA_JAR = os.path.join(os.path.expanduser("~"), ".ioisis", "Bruma.jar")
+BRUMA_HASH = "a68c3f21ad98a21de49b2eb1c75ccc63bb46f336c1b285ea7fc6d128d29fc57d"
+
+
+class BrumaCheckError(Exception):
+    pass
+
+
+def check_bruma():
+    """Check if Bruma.jar is valid, and download it if it's missing."""
+    if not os.path.exists(BRUMA_JAR):
+        download_bruma()
+    if not os.path.isfile(BRUMA_JAR):
+        raise BrumaCheckError("Bruma.jar isn't a file")
+    with open(BRUMA_JAR, "rb") as raw_bruma_file:
+        if sha256(raw_bruma_file.read()).hexdigest() != BRUMA_HASH:
+            raise BrumaCheckError("Invalid Bruma.jar file")
+
+
+def download_bruma():
+    """Simply download BRUMA_URL to BRUMA_JAR."""
+    os.makedirs(os.path.dirname(BRUMA_JAR), exist_ok=True)
+    with open(BRUMA_JAR, "wb") as raw_bruma_file:
+        raw_bruma_file.write(urlopen(BRUMA_URL).read())
+
+
 @generator_blocking_process
 def iter_records(mst_filename):
-    with jvm(domains=["bruma"], classpath="Bruma.jar"):
+    check_bruma()
+    with jvm(domains=["bruma"], classpath=BRUMA_JAR):
         from bruma.master import MasterFactory, Record
         with closing(MasterFactory.getInstance(mst_filename).open()) as mst:
             for record in mst:
