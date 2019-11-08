@@ -11,6 +11,8 @@ BRUMA_URL = "https://github.com/scieloorg/isis2json/raw/def7327/lib/Bruma.jar"
 BRUMA_JAR = os.path.join(os.path.expanduser("~"), ".ioisis", "Bruma.jar")
 BRUMA_HASH = "a68c3f21ad98a21de49b2eb1c75ccc63bb46f336c1b285ea7fc6d128d29fc57d"
 
+DEFAULT_MST_ENCODING = "cp1252"
+
 
 class BrumaCheckError(Exception):
     pass
@@ -35,11 +37,12 @@ def download_bruma():
 
 
 @generator_blocking_process
-def iter_records(mst_filename):
+def iter_records(mst_filename, encoding=DEFAULT_MST_ENCODING):
     check_bruma()
     with jvm(domains=["bruma"], classpath=BRUMA_JAR):
         from bruma.master import MasterFactory, Record
-        with closing(MasterFactory.getInstance(mst_filename).open()) as mst:
+        mf = MasterFactory.getInstance(mst_filename).setEncoding(encoding)
+        with closing(mf.open()) as mst:
             for record in mst:
                 result = defaultdict(list)
                 result["active"] = record.getStatus() == Record.Status.ACTIVE

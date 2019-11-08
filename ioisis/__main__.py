@@ -30,6 +30,12 @@ def main():
     is_eager=True,
     help="JSONL file encoding.",
 )
+@click.option(
+    "mst_encoding", "--menc",
+    default=mst.DEFAULT_MST_ENCODING,
+    show_default=True,
+    help="MST file encoding.",
+)
 @click.argument(
     "mst_input",
     type=click.Path(dir_okay=False, resolve_path=True, allow_dash=False),
@@ -40,10 +46,10 @@ def main():
         click.File("w", encoding=ctx.jsonl_encoding)(value),
     default="-",
 )
-def mst2jsonl(mst_input, jsonl_output, jsonl_encoding):
+def mst2jsonl(mst_input, jsonl_output, jsonl_encoding, mst_encoding):
     """MST+XRF to JSON Lines."""
     ensure_ascii = jsonl_output.encoding.lower() == "ascii"
-    for record in mst.iter_records(mst_input):
+    for record in mst.iter_records(mst_input, encoding=mst_encoding):
         ujson.dump(
             record, jsonl_output,
             ensure_ascii=ensure_ascii,
