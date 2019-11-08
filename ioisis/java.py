@@ -20,17 +20,30 @@ def jvm(domains=(), classpath=None, use_str=True):
 
 def generator_blocking_process(func):
     """Decorator to run a generator in another [blocking] process."""
-    def run(func, conn, args, **kwargs):
-        conn.recv()
-        for value in func(*args, **kwargs):
-            conn.send(value)
-            conn.recv()
-        conn.close()
+    def run(func, conn_main, conn_proc, args, **kwargs):
+        conn_main.close()
+        try:
+            conn_proc.recv()
+        except EOFError:  # Pipe closed before asking the first entry
+            pass
+        else:
+            for value in func(*args, **kwargs):
+                try:
+                    conn_proc.send(value)
+                    conn_proc.recv()
+                except EOFError:  # Broken pipe in the main process
+                    break
+        finally:
+            conn_proc.close()
 
     @wraps(func)
     def wrapper(*args, **kwargs):
         conn_main, conn_proc = Pipe(duplex=True)
-        proc = Process(target=run, args=[func, conn_proc, args], kwargs=kwargs)
+        proc = Process(
+            target=run,
+            args=[func, conn_main, conn_proc, args],
+            kwargs=kwargs,
+        )
         proc.start()
         try:
             conn_proc.close()
@@ -40,6 +53,7 @@ def generator_blocking_process(func):
         except EOFError:  # No more entries
             pass
         finally:
+            conn_main.close()
             proc.join()
 
     return wrapper

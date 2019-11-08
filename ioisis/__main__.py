@@ -1,3 +1,7 @@
+from io import BytesIO
+import signal
+import sys
+
 import click
 import ujson
 
@@ -10,6 +14,11 @@ DEFAULT_JSONL_ENCODING = "utf-8"
 @click.group()
 def main():
     """ISIS data converter using the ioisis Python library."""
+    try:  # Fix BrokenPipeError by opening a new fake standard output
+        signal.signal(signal.SIGPIPE,
+                      lambda signum, frame: setattr(sys, "stdout", BytesIO()))
+    except (AttributeError, ValueError):
+        pass  # No SIGPIPE in this OS
 
 
 @main.command()
