@@ -46,7 +46,8 @@ from ioisis import iso, mst
 for record_dict in mst.iter_records("file.mst"):
     ...
 
-# For ISO files, you should use an open file in "rb" mode
+# For ISO files, you can either use a file name
+# or any file-like object open in "rb" mode
 with open("file.iso", "rb") as raw_iso_file:
     for record_dict in iso.iter_records(raw_iso_file):
         ...
