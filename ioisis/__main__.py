@@ -83,7 +83,7 @@ def mst2jsonl(mst_input, jsonl_output, jsonl_encoding, mst_encoding):
 def iso2jsonl(iso_input, jsonl_output, iso_encoding, jsonl_encoding):
     """ISO2709 to JSON Lines."""
     ensure_ascii = jsonl_output.encoding.lower() == "ascii"
-    for record in iso.iter_records(iso_input):
+    for record in iso.iter_records(iso_input, encoding=iso_encoding):
         ujson.dump(
             record, jsonl_output,
             ensure_ascii=ensure_ascii,
