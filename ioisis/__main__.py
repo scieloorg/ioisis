@@ -56,6 +56,7 @@ def mst2jsonl(mst_input, jsonl_output, jsonl_encoding, mst_encoding):
             escape_forward_slashes=False,
         )
         jsonl_output.write("\n")
+        jsonl_output.flush()
 
 
 @main.command()
@@ -90,6 +91,7 @@ def iso2jsonl(iso_input, jsonl_output, iso_encoding, jsonl_encoding):
             escape_forward_slashes=False,
         )
         jsonl_output.write("\n")
+        jsonl_output.flush()
 
 
 @main.command()
@@ -119,6 +121,7 @@ def jsonl2iso(jsonl_input, iso_output, iso_encoding, jsonl_encoding):
     for line in jsonl_input:
         record_dict = ujson.loads(line)
         iso_output.write(iso.dict2bytes(record_dict, encoding=iso_encoding))
+        iso_output.flush()
 
 
 if __name__ == "__main__":
