@@ -12,10 +12,12 @@ def jvm(domains=(), classpath=None, use_str=True):
     import jpype
     import jpype.imports
     jpype.startJVM(classpath=classpath, convertStrings=use_str)
-    for domain in domains:
-        jpype.imports.registerDomain(domain)
-    yield
-    jpype.shutdownJVM()
+    try:
+        for domain in domains:
+            jpype.imports.registerDomain(domain)
+        yield
+    finally:
+        jpype.shutdownJVM()
 
 
 def generator_blocking_process(func):
