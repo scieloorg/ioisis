@@ -189,7 +189,7 @@ def create_record_struct(
                             lambda this: this._._build_len_list[this._index]),
             "pos" / Rebuild(IntInASCII(Bytes(this._.pos_len)),
                             lambda this: this._._build_pos_list[this._index]),
-            "custom" / Rebuild(Bytes(this._.custom_len),
+            "custom" / Default(Bytes(this._.custom_len),
                                b"0" * this._.custom_len),
         )[this.num_fields],
         Check(lambda this: this.num_fields == 0 or (
