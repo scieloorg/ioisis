@@ -20,7 +20,7 @@ def jvm(domains=(), classpath=None, use_str=True):
         jpype.shutdownJVM()
 
 
-def generator_blocking_process(func):
+def generator_blocking_process(func):  # noqa: C
     """Decorator to run a generator in another [blocking] process."""
     def run(func, conn_main, conn_proc, args, **kwargs):
         conn_main.close()
