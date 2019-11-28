@@ -1,2 +1,4 @@
 include LICENSE.txt
 include tests/*.py
+include tox.ini
+include requirements.txt
