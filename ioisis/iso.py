@@ -12,7 +12,7 @@ import re
 
 from construct import Adapter, Array, Bytes, Check, CheckError, Computed, \
                       Const, Default, Embedded, Rebuild, Restreamed, \
-                      RestreamedBytesIO, Struct, this
+                      RestreamedBytesIO, Select, Struct, Terminated, this
 
 from .common import should_be_file
 
@@ -221,8 +221,12 @@ DEFAULT_RECORD_STRUCT = line_split_restreamed(create_record_struct())
 @should_be_file("iso_file")
 def iter_con(iso_file, record_struct=DEFAULT_RECORD_STRUCT):
     """Generator of records as parsed construct objects."""
-    while clear_cr_lf(iso_file.peek(5)):  # Has another record
-        yield record_struct.parse_stream(iso_file)
+    alt_struct = Select(record_struct, Const(b"\n"), Terminated)
+    while True:
+        con = alt_struct.parse_stream(iso_file)
+        if con is None or con == b"\n":  # No more records
+            return
+        yield con
 
 
 def iter_records(iso_file, encoding=DEFAULT_ISO_ENCODING, **kwargs):
