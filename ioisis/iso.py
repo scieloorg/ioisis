@@ -11,8 +11,8 @@ from itertools import accumulate
 import re
 
 from construct import Adapter, Array, Bytes, Check, CheckError, Computed, \
-                      Const, Default, Embedded, Rebuild, Restreamed, \
-                      RestreamedBytesIO, Select, Struct, Terminated, this
+                      Const, Default, Embedded, Rebuild, Select, Struct, \
+                      Subconstruct, Terminated, this
 
 from .common import should_be_file
 
@@ -32,6 +32,7 @@ DEFAULT_LINE_LEN = 80
 DEFAULT_NEWLINE = b"\n"
 
 
+# TODO: remove this in v0.2 as it's no longer required
 clear_cr_lf = partial(re.compile(b"[\r\n]").sub, b"")
 
 
@@ -64,35 +65,83 @@ class CheckTrimSuffix(Adapter):
         return obj + self._suffix
 
 
-class RestreamedBytesIOWriteLastIncomplete(RestreamedBytesIO):
-    """Alternative to RestreamedBytesIO
-    that flushes the output buffer on building before closing.
-    """
+class LineSplittedBytesIO:
+
+    def __init__(self, substream, line_len, newline):
+        self.substream = substream
+        self.line_len = line_len
+        self.newline = newline
+        self.wbuffer = b""
+        self.rnext_eol = line_len
+
+    def _check_eol(self):
+        if self.substream.read(len(self.newline)) != self.newline:
+            raise CheckError("Invalid record line splitting")
+
+    def read(self, count=None):
+        result = b""
+        while count is None or len(result) < count:
+            # TODO: Find equation to read all at once
+            data = self.substream.read(1)
+            if not data:
+                break
+            result += data
+            self.rnext_eol -= 1
+            if self.rnext_eol == 0:
+                self._check_eol()
+                self.rnext_eol = self.line_len
+        return result
+
+    def write(self, data):
+        self.wbuffer += data
+        result = len(data)
+        while len(self.wbuffer) >= self.line_len:
+            data, self.wbuffer = (self.wbuffer[:self.line_len],
+                                  self.wbuffer[self.line_len:])
+            self.substream.write(data)
+            self.substream.write(self.newline)
+        return result
+
     def close(self):
+        if self.rnext_eol != self.line_len:
+            self._check_eol()
         if self.wbuffer:
-            self.substream.write(self.encoder(self.wbuffer))
-            self.wbuffer = b""
-        super(RestreamedBytesIOWriteLastIncomplete, self).close()
+            self.substream.write(self.wbuffer)
+            self.substream.write(self.newline)
 
 
-class RestreamedBuildLastIncomplete(Restreamed):
+class LineSplitRestreamed(Subconstruct):
     """Alternative to Restreamed
-    that uses RestreamedBytesIOWriteLastIncomplete
-    instead of RestreamedBytesIO.
-    The difference is that this class
-    encodes the last incomplete chunk on building
-    instead of aborting the building process.
+    that parses a "line splitted" data,
+    builds the lines appending the ``newline`` character/string,
+    and works properly with a last incomplete chunk.
     """
-    def _build(self, obj, stream, context, path):
-        with closing(RestreamedBytesIOWriteLastIncomplete(
+    def __init__(self, subcon, line_len=DEFAULT_LINE_LEN,
+                 newline=DEFAULT_NEWLINE):
+        super().__init__(subcon)
+        self.line_len = line_len
+        self.newline = newline
+
+    def _parse(self, stream, context, path):
+        with closing(LineSplittedBytesIO(
             substream=stream,
-            decoder=self.decoder,
-            decoderunit=self.decoderunit,
-            encoder=self.encoder,
-            encoderunit=self.encoderunit,
+            line_len=self.line_len,
+            newline=self.newline,
+        )) as stream2:
+            return self.subcon._parsereport(stream2, context, path)
+
+    def _build(self, obj, stream, context, path):
+        with closing(LineSplittedBytesIO(
+            substream=stream,
+            line_len=self.line_len,
+            newline=self.newline,
         )) as stream2:
             self.subcon._build(obj, stream2, context, path)
         return obj
+
+    def _sizeof(self, context, path):
+        n = self.subcon._sizeof(context, path)
+        return n + (n // self.line_len + 1) * len(self.newline),
 
 
 def line_split_restreamed(
@@ -100,24 +149,11 @@ def line_split_restreamed(
     line_len=DEFAULT_LINE_LEN,
     newline=DEFAULT_NEWLINE
 ):
-    """Decorates a subconstruct object
-    with something like ``construct.Restreamed``
-    to parse/build the contents in a text-like structure,
-    neglecting the CR and LF separators on parsing
-    and using the chosen newline separator on building
-    for the given line length.
-    On parsing, this doesn't check the stream splitting format,
-    it just discards the CR/LF no matter where they are.
-    """
-    size_extra = len(newline)
-    return RestreamedBuildLastIncomplete(
-        subcon,
-        decoder=clear_cr_lf,
-        decoderunit=1,
-        encoder=lambda chunk: chunk + newline,
-        encoderunit=line_len,
-        sizecomputer=lambda n: n + (n // line_len + 1) * size_extra,
-    )
+    import warnings
+    warnings.warn("ioisis.iso.line_split_restreamed is deprecated. "
+                  "Use ioisis.iso.LineSplitRestreamed instead",
+                  DeprecationWarning)
+    return LineSplitRestreamed(subcon, line_len, newline)
 
 
 def create_record_struct(
@@ -215,16 +251,16 @@ def create_record_struct(
     )
 
 
-DEFAULT_RECORD_STRUCT = line_split_restreamed(create_record_struct())
+DEFAULT_RECORD_STRUCT = LineSplitRestreamed(create_record_struct())
 
 
 @should_be_file("iso_file")
 def iter_con(iso_file, record_struct=DEFAULT_RECORD_STRUCT):
     """Generator of records as parsed construct objects."""
-    alt_struct = Select(record_struct, Const(b"\n"), Terminated)
+    alt_struct = Select(record_struct, Terminated)
     while True:
         con = alt_struct.parse_stream(iso_file)
-        if con is None or con == b"\n":  # No more records
+        if con is None:  # No more records
             return
         yield con
 

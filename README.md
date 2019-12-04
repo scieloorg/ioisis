@@ -305,7 +305,7 @@ The default builder/parser for a single record
 was created with:
 
 ```python
-DEFAULT_RECORD_STRUCT = iso.line_split_restreamed(
+DEFAULT_RECORD_STRUCT = iso.LineSplitRestreamed(
     iso.create_record_struct(
       field_terminator=iso.DEFAULT_FIELD_TERMINATOR,
       record_terminator=iso.DEFAULT_RECORD_TERMINATOR,
@@ -327,7 +327,7 @@ when calling the functions.
 ...     "INF": ["old"],
 ...     "SIZ": ["34"],
 ... }
->>> custom_struct = iso.line_split_restreamed(
+>>> custom_struct = iso.LineSplitRestreamed(
 ...     iso.create_record_struct(
 ...       field_terminator=b";",
 ...       record_terminator=b"@",
