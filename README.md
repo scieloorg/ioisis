@@ -245,18 +245,19 @@ That simple: concatenating two ISO files
 should result in another valid ISO file
 with all the records from both.
 
-On the other hand,
-there's an issue when it comes to line breaking in ISO files.
 Although that's not part of the ISO2709 specification,
 the `iso.DEFAULT_RECORD_STRUCT` parser/builder object
 assumes that:
 
-* All CR/LF (`\x0d` and `\x0a`, Carriage Return and Line Feed)
-  characters must be ignored on parsing;
-* All lines of a given record must have at most 80 bytes,
+* All lines of a given record but the last one
+  must have exactly 80 bytes,
   and a line feed (`\x0a`) must be included after that;
 * Every line must belong to a single record;
-* The last line of a file must be `\x0a`.
+* The last line of a single record must finish with a `\x0a`.
+
+That's the behavior of `iso.LineSplitRestreamed`,
+which "wraps" the record structure
+to give this "line splitting" behavior.
 
 
 #### Parsing/building data with meaningful line breaking characters
@@ -271,15 +272,16 @@ Suppose we want to store these values:
 
 ```
 
-That's makes sense as an example of an ISO record
+That makes sense as an example of an ISO record
 with three `SIZ` fields, each with three subfields,
 where the second subfield
 is the default newline character of some environment,
 and the third subfield is its size.
-We can't build that using the `DEFAULT_RECORD_STRUCT`
-because we know beforehand that our values have
-these newline characters.
-The alternative is to create another struct:
+Although can build that using the `DEFAULT_RECORD_STRUCT`
+(the end of line never gets mixed with the content),
+we know beforehand that our values have newline characters,
+and we might want an alternative struct
+without that "wrapped" line breaking behavior:
 
 ```python
 >>> breakless_struct = iso.create_record_struct()
