@@ -79,18 +79,21 @@ class LineSplittedBytesIO:
             raise CheckError("Invalid record line splitting")
 
     def read(self, count=None):
-        result = b""
-        while count is None or len(result) < count:
-            # TODO: Find equation to read all at once
-            data = self.substream.read(1)
-            if not data:
-                break
-            result += data
-            self.rnext_eol -= 1
-            if self.rnext_eol == 0:
+        result = []
+        remaining = float("inf") if count is None else count
+        while remaining > 0:
+            expected_len = min(self.rnext_eol, remaining)
+            data = self.substream.read(expected_len)
+            data_len = len(data)
+            result.append(data)
+            remaining -= data_len
+            if self.rnext_eol == data_len:
                 self._check_eol()
                 self.rnext_eol = self.line_len
-        return result
+            else:
+                self.rnext_eol -= data_len
+                break
+        return b"".join(result)
 
     def write(self, data):
         self.wbuffer += data
