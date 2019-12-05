@@ -22,14 +22,16 @@ simple_example_iso = (
 
 
 def test_jsonl2iso_simple_example_on_standard_streams():
-    runner = CliRunner()
+    runner = CliRunner(mix_stderr=False)
     result = runner.invoke(jsonl2iso, input=simple_example_jsonl)
     assert result.exit_code == 0
     assert result.stdout_bytes == simple_example_iso
+    assert result.stderr_bytes == b""
 
 
 def test_iso2jsonl_simple_example_on_standard_streams():
-    runner = CliRunner()
+    runner = CliRunner(mix_stderr=False)
     result = runner.invoke(iso2jsonl, input=simple_example_iso)
     assert result.exit_code == 0
     assert result.stdout_bytes == simple_example_jsonl
+    assert result.stderr_bytes == b""
