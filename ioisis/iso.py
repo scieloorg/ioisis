@@ -6,9 +6,7 @@ https://wiki.bireme.org/pt/img_auth.php/5/5f/2709BR.pdf
 """
 from collections import defaultdict
 from contextlib import closing
-from functools import partial
 from itertools import accumulate
-import re
 
 from construct import Adapter, Array, Bytes, Check, CheckError, Computed, \
                       Const, Default, Embedded, Rebuild, Select, Struct, \
@@ -30,10 +28,6 @@ DEFAULT_CUSTOM_LEN = 0
 # Only for building
 DEFAULT_LINE_LEN = 80
 DEFAULT_NEWLINE = b"\n"
-
-
-# TODO: remove this in v0.2 as it's no longer required
-clear_cr_lf = partial(re.compile(b"[\r\n]").sub, b"")
 
 
 class IntInASCII(Adapter):
@@ -145,18 +139,6 @@ class LineSplitRestreamed(Subconstruct):
     def _sizeof(self, context, path):
         n = self.subcon._sizeof(context, path)
         return n + (n // self.line_len + 1) * len(self.newline),
-
-
-def line_split_restreamed(
-    subcon,
-    line_len=DEFAULT_LINE_LEN,
-    newline=DEFAULT_NEWLINE
-):
-    import warnings
-    warnings.warn("ioisis.iso.line_split_restreamed is deprecated. "
-                  "Use ioisis.iso.LineSplitRestreamed instead",
-                  DeprecationWarning)
-    return LineSplitRestreamed(subcon, line_len, newline)
 
 
 def create_record_struct(
