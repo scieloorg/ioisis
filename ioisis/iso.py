@@ -214,6 +214,7 @@ def create_record_struct(
             )
         )),
         Const(field_terminator),
+        Check(lambda this: this._io.tell() + TOTAL_LEN_LEN == this.base_addr),
 
         # Field data
         "fields" / Array(
