@@ -341,12 +341,13 @@ when calling the functions.
 ...     simple_data,
 ...     record_struct=custom_struct,
 ... )
->>> print(simple_data_iso.decode("ascii"), end="")
-00096000000000073000
-4500OBJ000600000OBJ0
-00900006INF000400015
-SIZ000300019;mouse;k
-eyboard;old;34;@
+>>> from pprint import pprint
+>>> pprint(simple_data_iso.decode("ascii"))
+('00096000000000073000\n'
+ '4500OBJ000600000OBJ0\n'
+ '00900006INF000400015\n'
+ 'SIZ000300019;mouse;k\n'
+ 'eyboard;old;34;@\n')
 >>> simple_data_con = custom_struct.parse(simple_data_iso)
 >>> simple_data == iso.con2dict(simple_data_con)
 True
