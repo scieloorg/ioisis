@@ -21,7 +21,7 @@ DEFAULT_FIELD_TERMINATOR = b"#"
 DEFAULT_RECORD_TERMINATOR = b"#"
 DEFAULT_ISO_ENCODING = "cp1252"
 
-LABEL_LEN = 24
+LEADER_LEN = 24
 TAG_LEN = 3
 DEFAULT_LEN_LEN = 4
 DEFAULT_POS_LEN = 5
@@ -186,10 +186,10 @@ def create_record_struct(
                 )
         ),
 
-        # Record label/header
+        # Record leader/header
         Embedded(Struct(
             "total_len" / Rebuild(IntInASCII(Bytes(5)),
-                lambda this: LABEL_LEN
+                lambda this: LEADER_LEN
                     + this._build_dir_len
                     + ft_len
                     + this._build_pos_list[-1]  # Fields length
@@ -202,8 +202,8 @@ def create_record_struct(
             "indicator_count" / Default(IntInASCII(Bytes(1)), 0),
             "identifier_len" / Default(IntInASCII(Bytes(1)), 0),
             "base_addr" / Rebuild(IntInASCII(Bytes(5)),
-                                  LABEL_LEN + this._build_dir_len
-                                            + ft_len),
+                                  LEADER_LEN + this._build_dir_len
+                                             + ft_len),
             "custom_3" / Default(Bytes(3), b"000"),
             Embedded(Struct(  # Directory entry map
                 "len_len" / Default(IntInASCII(Bytes(1)), DEFAULT_LEN_LEN),
@@ -214,7 +214,7 @@ def create_record_struct(
             )),
         )),
         "num_fields" / Computed(
-            (this.base_addr - LABEL_LEN - ft_len) //
+            (this.base_addr - LEADER_LEN - ft_len) //
             (TAG_LEN + this.len_len + this.pos_len + this.custom_len)
         ),
         Check(lambda this:

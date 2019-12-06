@@ -128,11 +128,11 @@ dict_items([('1', ['a']), ('555', ['test'])])
 
 Each ISO record is divided in 3 parts:
 
-* Label (24 bytes header with metadata)
+* Leader (24 bytes header with metadata)
 * Directory (metadata for each field value, mainly its 3-bytes *tag*)
 * Fields (the field values themselves as bytestrings)
 
-The *label* has:
+The *leader* has:
 
 * Single character metadata (`status`, `type`, `coding`)
 * Two numeric metadata (`indicator_count` and `identifier_len`),
