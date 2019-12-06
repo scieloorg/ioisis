@@ -9,8 +9,8 @@ from contextlib import closing
 from itertools import accumulate
 
 from construct import Adapter, Array, Bytes, Check, CheckError, Computed, \
-                      Const, Default, Embedded, Rebuild, Select, Struct, \
-                      Subconstruct, Terminated, this
+                      Const, Default, Embedded, Prefixed, Rebuild, Select, \
+                      Struct, Subconstruct, Terminated, this
 
 from .common import should_be_file
 
@@ -19,7 +19,8 @@ DEFAULT_FIELD_TERMINATOR = b"#"
 DEFAULT_RECORD_TERMINATOR = b"#"
 DEFAULT_ISO_ENCODING = "cp1252"
 
-LEADER_LEN = 24
+TOTAL_LEN_LEN = 5
+LEADER_LEN = TOTAL_LEN_LEN + 19
 TAG_LEN = 3
 DEFAULT_LEN_LEN = 4
 DEFAULT_POS_LEN = 5
@@ -147,8 +148,7 @@ def create_record_struct(
 ):
     """Create a construct parser/builder for a whole record object."""
     ft_len = len(field_terminator)
-    rt_len = len(record_terminator)
-    return Struct(
+    prefixless = Struct(
         # Build time pre-computed information
         "_build_len_list" / Computed(
             lambda this: None if "fields" not in this else
@@ -168,15 +168,8 @@ def create_record_struct(
                 )
         ),
 
-        # Record leader/header
+        # Record leader/header (apart from the leading total_len)
         Embedded(Struct(
-            "total_len" / Rebuild(IntInASCII(Bytes(5)),
-                lambda this: LEADER_LEN
-                    + this._build_dir_len
-                    + ft_len
-                    + this._build_pos_list[-1]  # Fields length
-                    + rt_len
-            ),
             "status" / Default(Bytes(1), b"0"),
             "type" / Default(Bytes(1), b"0"),
             "custom_2" / Default(Bytes(2), b"00"),
@@ -233,6 +226,18 @@ def create_record_struct(
 
         # There should be no more data belonging to this record
         Const(record_terminator),
+    )
+
+    # This includes (and checks) the total_len prefix
+    return Prefixed(
+        lengthfield=IntInASCII(Bytes(TOTAL_LEN_LEN)),
+        subcon=Struct(
+            Embedded(prefixless),
+            "total_len" / Computed(
+                lambda this: this._io.tell() + TOTAL_LEN_LEN
+            ),
+        ),
+        includelength=True,
     )
 
 

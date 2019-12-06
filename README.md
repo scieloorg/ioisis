@@ -167,8 +167,7 @@ and they're all filled with zeros by default
 
 Length and position fields that are stored in the record
 (`total_len`, `base_addr`, `dir.len`, `dir.pos`)
-are computed in build time and checked on parsing
-(apart from `total_len`, which is ignored on parsing).
+are computed in build time and checked on parsing.
 We don't need to worry about these fields,
 but we can read them if needed.
 For example, one directory record (a dictionary) has this:
@@ -351,5 +350,14 @@ when calling the functions.
 >>> simple_data_con = custom_struct.parse(simple_data_iso)
 >>> simple_data == iso.con2dict(simple_data_con)
 True
+
+```
+
+The calculated sizes don't count
+the extra line breaking characters of `iso.LineSplitRestreamed`:
+
+```python
+>>> simple_data_con.total_len, simple_data_con.base_addr
+(96, 73)
 
 ```
