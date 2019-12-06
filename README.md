@@ -138,12 +138,12 @@ The *leader* has:
 * Two numeric metadata (`indicator_count` and `identifier_len`),
   which should range only from 0 to 9
 * Free room for "vendor-specific" stuff as bytestrings:
-  `reserved`, `custom_2` and `custom_3`,
+  `custom_2` and `custom_3`,
   where the numbers are their size in bytes
-  and `reserved` has only one byte
 * An entry map, i.e., the size of each field of the directory:
   `len_len`, `pos_len` and `custom_len`,
   which should range only from 0 to 9
+* A single byte, `reserved`, literally reserved for future use
 
 ```python
 >>> con.len_len, con.pos_len, con.custom_len
