@@ -9,8 +9,8 @@ from contextlib import closing
 from itertools import accumulate
 
 from construct import Adapter, Array, Bytes, Check, CheckError, Computed, \
-                      Const, Default, Embedded, Prefixed, Rebuild, Select, \
-                      Struct, Subconstruct, Terminated, this
+                      Const, Default, Embedded, FocusedSeq, Prefixed, \
+                      Rebuild, Select, Struct, Subconstruct, Terminated, this
 
 from .common import should_be_file
 
@@ -37,25 +37,6 @@ class IntInASCII(Adapter):
     def _encode(self, obj, context, path):
         length = self.subcon.sizeof(**context)
         return (b"%d" % obj).zfill(length)
-
-
-class CheckTrimSuffix(Adapter):
-    """Adapter for Bytes to check/insert/remove a given suffix,
-    making it possible to check both the string suffix and size.
-    The subcon size must include the suffix length.
-    """
-    def __init__(self, subcon, suffix):
-        self._suffix = suffix
-        self._suffix_len = len(suffix)
-        super(CheckTrimSuffix, self).__init__(subcon)
-
-    def _decode(self, obj, context, path):
-        if not obj.endswith(self._suffix):
-            raise CheckError("Missing the %s suffix." % repr(self._suffix))
-        return obj[:-self._suffix_len]
-
-    def _encode(self, obj, context, path):
-        return obj + self._suffix
 
 
 class LineSplittedBytesIO:
@@ -219,9 +200,12 @@ def create_record_struct(
         # Field data
         "fields" / Array(
             this.num_fields,
-            CheckTrimSuffix(
-                Bytes(lambda this: this.dir[this._index].len),
-                field_terminator,
+            FocusedSeq(
+                "value",
+                "value" / Bytes(
+                    lambda this: this._.dir[this._index].len - ft_len
+                ),
+                Const(field_terminator),
             ),
         ),
 
