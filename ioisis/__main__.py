@@ -1,3 +1,4 @@
+from functools import reduce
 from io import BytesIO
 import signal
 import sys
@@ -9,6 +10,55 @@ from . import iso, mst
 
 
 DEFAULT_JSONL_ENCODING = "utf-8"
+INPUT_PATH = object()
+
+
+def apply_decorators(*decorators):
+    """Decorator that applies the decorators in reversed order."""
+    return lambda func: reduce(lambda f, d: d(f), decorators[::-1], func)
+
+
+def encoding_option(file_ext, default, **kwargs):
+    return click.option(
+        file_ext + "_encoding",
+        f"--{file_ext[0]}enc",
+        default=default,
+        show_default=True,
+        help=f"{file_ext.upper()} file encoding.",
+        **kwargs,
+    )
+
+
+def file_arg_enc_option(file_ext, mode, default_encoding):
+    arg_name = file_ext + "_input"
+    arg_kwargs = {}
+    enc_kwargs = {}
+    if mode is INPUT_PATH:
+        arg_kwargs["type"] = click.Path(
+            dir_okay=False,
+            resolve_path=True,
+            allow_dash=False,
+        )
+    else:
+        arg_kwargs["default"] = "-"
+        if "w" in mode:
+            arg_name = file_ext + "_output"
+        if "b" in mode:
+            arg_kwargs["type"] = click.File(mode)
+        else:
+            ctx_attr = file_ext + "_encoding"
+            arg_kwargs["callback"] = lambda ctx, param, value: \
+                click.File(mode, encoding=getattr(ctx, ctx_attr))(value)
+            enc_kwargs = {
+                "callback": lambda ctx, param, value:
+                    setattr(ctx, ctx_attr, value),
+                "is_eager": True,
+            }
+
+    return apply_decorators(
+        encoding_option(file_ext, default=default_encoding, **enc_kwargs),
+        click.argument(arg_name, **arg_kwargs)
+    )
 
 
 @click.group()
@@ -22,30 +72,8 @@ def main():
 
 
 @main.command()
-@click.option(
-    "jsonl_encoding", "--jenc",
-    default=DEFAULT_JSONL_ENCODING,
-    show_default=True,
-    callback=lambda ctx, param, value: setattr(ctx, "jsonl_encoding", value),
-    is_eager=True,
-    help="JSONL file encoding.",
-)
-@click.option(
-    "mst_encoding", "--menc",
-    default=mst.DEFAULT_MST_ENCODING,
-    show_default=True,
-    help="MST file encoding.",
-)
-@click.argument(
-    "mst_input",
-    type=click.Path(dir_okay=False, resolve_path=True, allow_dash=False),
-)
-@click.argument(
-    "jsonl_output",
-    callback=lambda ctx, param, value:
-        click.File("w", encoding=ctx.jsonl_encoding)(value),
-    default="-",
-)
+@file_arg_enc_option("mst", INPUT_PATH, mst.DEFAULT_MST_ENCODING)
+@file_arg_enc_option("jsonl", "w", DEFAULT_JSONL_ENCODING)
 def mst2jsonl(mst_input, jsonl_output, jsonl_encoding, mst_encoding):
     """MST+XRF to JSON Lines."""
     ensure_ascii = jsonl_output.encoding.lower() == "ascii"
@@ -60,27 +88,8 @@ def mst2jsonl(mst_input, jsonl_output, jsonl_encoding, mst_encoding):
 
 
 @main.command()
-@click.option(
-    "iso_encoding", "--ienc",
-    default=iso.DEFAULT_ISO_ENCODING,
-    show_default=True,
-    help="ISO file encoding.",
-)
-@click.option(
-    "jsonl_encoding", "--jenc",
-    default=DEFAULT_JSONL_ENCODING,
-    show_default=True,
-    callback=lambda ctx, param, value: setattr(ctx, "jsonl_encoding", value),
-    is_eager=True,
-    help="JSONL file encoding.",
-)
-@click.argument("iso_input", type=click.File("rb"), default="-")
-@click.argument(
-    "jsonl_output",
-    callback=lambda ctx, param, value:
-        click.File("w", encoding=ctx.jsonl_encoding)(value),
-    default="-",
-)
+@file_arg_enc_option("iso", "rb", iso.DEFAULT_ISO_ENCODING)
+@file_arg_enc_option("jsonl", "w", DEFAULT_JSONL_ENCODING)
 def iso2jsonl(iso_input, jsonl_output, iso_encoding, jsonl_encoding):
     """ISO2709 to JSON Lines."""
     ensure_ascii = jsonl_output.encoding.lower() == "ascii"
@@ -95,27 +104,8 @@ def iso2jsonl(iso_input, jsonl_output, iso_encoding, jsonl_encoding):
 
 
 @main.command()
-@click.option(
-    "iso_encoding", "--ienc",
-    default=iso.DEFAULT_ISO_ENCODING,
-    show_default=True,
-    help="ISO file encoding.",
-)
-@click.option(
-    "jsonl_encoding", "--jenc",
-    default=DEFAULT_JSONL_ENCODING,
-    show_default=True,
-    callback=lambda ctx, param, value: setattr(ctx, "jsonl_encoding", value),
-    is_eager=True,
-    help="JSONL file encoding.",
-)
-@click.argument(
-    "jsonl_input",
-    callback=lambda ctx, param, value:
-        click.File("r", encoding=ctx.jsonl_encoding)(value),
-    default="-",
-)
-@click.argument("iso_output", type=click.File("wb"), default="-")
+@file_arg_enc_option("jsonl", "r", DEFAULT_JSONL_ENCODING)
+@file_arg_enc_option("iso", "wb", iso.DEFAULT_ISO_ENCODING)
 def jsonl2iso(jsonl_input, iso_output, iso_encoding, jsonl_encoding):
     """JSON Lines to ISO2709."""
     for line in jsonl_input:
