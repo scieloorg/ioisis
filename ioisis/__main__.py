@@ -19,11 +19,15 @@ def apply_decorators(*decorators):
 
 
 def encoding_option(file_ext, default, **kwargs):
+    ctx_attr = file_ext + "_encoding"
     return click.option(
-        file_ext + "_encoding",
+        ctx_attr,
         f"--{file_ext[0]}enc",
         default=default,
         show_default=True,
+        callback=lambda ctx, param, value:
+            setattr(ctx, ctx_attr, value) or value,
+        is_eager=True,
         help=f"{file_ext.upper()} file encoding.",
         **kwargs,
     )
@@ -32,7 +36,6 @@ def encoding_option(file_ext, default, **kwargs):
 def file_arg_enc_option(file_ext, mode, default_encoding):
     arg_name = file_ext + "_input"
     arg_kwargs = {}
-    enc_kwargs = {}
     if mode is INPUT_PATH:
         arg_kwargs["type"] = click.Path(
             dir_okay=False,
@@ -49,14 +52,9 @@ def file_arg_enc_option(file_ext, mode, default_encoding):
             ctx_attr = file_ext + "_encoding"
             arg_kwargs["callback"] = lambda ctx, param, value: \
                 click.File(mode, encoding=getattr(ctx, ctx_attr))(value)
-            enc_kwargs = {
-                "callback": lambda ctx, param, value:
-                    setattr(ctx, ctx_attr, value),
-                "is_eager": True,
-            }
 
     return apply_decorators(
-        encoding_option(file_ext, default=default_encoding, **enc_kwargs),
+        encoding_option(file_ext, default=default_encoding),
         click.argument(arg_name, **arg_kwargs)
     )
 
