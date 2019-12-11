@@ -13,6 +13,8 @@ class SubfieldParser:
         of the fields to be parsed.
     length : int
         Subfield key length after its mark in the field.
+    lower : bool
+        Force keys to be in lowercase, making them case insensitive.
     first : str, bytes or None
         The key to be used for the leading value.
     empty : bool
@@ -45,8 +47,9 @@ class SubfieldParser:
     [('', 'data'), ('t', 'text'), ('l', 'en'), ('t', 'Trail')]
 
     """
-    def __init__(self, prefix, *, length=1, first=None,
+    def __init__(self, prefix, *, length=1, lower=False, first=None,
                  empty=False, number=True, zero=False):
+        self.lower = lower
         self.first = first
         self.empty = empty
         self.number = number
@@ -69,6 +72,8 @@ class SubfieldParser:
             if self.empty or value:
                 if self.first and not key:
                     key = self.first
+                if self.lower:
+                    key = key.lower()
                 if self.number:
                     suffix_int = key_count[key]
                     if self.zero or suffix_int:
