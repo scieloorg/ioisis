@@ -17,6 +17,8 @@ from .common import should_be_file
 
 DEFAULT_FIELD_TERMINATOR = b"#"
 DEFAULT_RECORD_TERMINATOR = b"#"
+DEFAULT_LINE_LEN = 80
+DEFAULT_NEWLINE = b"\n"
 DEFAULT_ISO_ENCODING = "cp1252"
 
 TOTAL_LEN_LEN = 5
@@ -25,10 +27,6 @@ TAG_LEN = 3
 DEFAULT_LEN_LEN = 4
 DEFAULT_POS_LEN = 5
 DEFAULT_CUSTOM_LEN = 0
-
-# Only for building
-DEFAULT_LINE_LEN = 80
-DEFAULT_NEWLINE = b"\n"
 
 
 class IntInASCII(Adapter):
@@ -145,6 +143,8 @@ class LineSplitRestreamed(Subconstruct):
 def create_record_struct(
     field_terminator=DEFAULT_FIELD_TERMINATOR,
     record_terminator=DEFAULT_RECORD_TERMINATOR,
+    line_len=DEFAULT_LINE_LEN,
+    newline=DEFAULT_NEWLINE,
 ):
     """Create a construct parser/builder for a whole record object."""
     ft_len = len(field_terminator)
@@ -230,7 +230,7 @@ def create_record_struct(
     )
 
     # This includes (and checks) the total_len prefix
-    return Prefixed(
+    result = Prefixed(
         lengthfield=IntInASCII(Bytes(TOTAL_LEN_LEN)),
         subcon=Struct(
             Embedded(prefixless),
@@ -241,8 +241,12 @@ def create_record_struct(
         includelength=True,
     )
 
+    if line_len is None or line_len == 0:
+        return result
+    return LineSplitRestreamed(result, line_len=line_len, newline=newline)
 
-DEFAULT_RECORD_STRUCT = LineSplitRestreamed(create_record_struct())
+
+DEFAULT_RECORD_STRUCT = create_record_struct()
 
 
 @should_be_file("iso_file")

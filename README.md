@@ -255,8 +255,10 @@ assumes that:
 * The last line of a single record must finish with a `\x0a`.
 
 That's the behavior of `iso.LineSplitRestreamed`,
-which "wraps" the record structure
-to give this "line splitting" behavior.
+which "wraps" internally the record structure
+to give this "line splitting" behavior,
+but that can be avoided by setting the `line_len` to `None` or zero
+when creating a custom record struct.
 
 
 #### Parsing/building data with meaningful line breaking characters
@@ -283,7 +285,7 @@ and we might want an alternative struct
 without that "wrapped" line breaking behavior:
 
 ```python
->>> breakless_struct = iso.create_record_struct()
+>>> breakless_struct = iso.create_record_struct(line_len=0)
 >>> newline_info_iso = breakless_struct.build(newline_info_dict)
 >>> newline_info_iso
 b'000950000000000610004500SIZ001200000SIZ001100012SIZ001000023#linux^c\n^s1#win^c\r\n^s2#mac^c\r^s1##'
@@ -306,11 +308,9 @@ The default builder/parser for a single record
 was created with:
 
 ```python
-DEFAULT_RECORD_STRUCT = iso.LineSplitRestreamed(
-    iso.create_record_struct(
-      field_terminator=iso.DEFAULT_FIELD_TERMINATOR,
-      record_terminator=iso.DEFAULT_RECORD_TERMINATOR,
-    ),
+DEFAULT_RECORD_STRUCT = iso.create_record_struct(
+    field_terminator=iso.DEFAULT_FIELD_TERMINATOR,
+    record_terminator=iso.DEFAULT_RECORD_TERMINATOR,
     line_len=iso.DEFAULT_LINE_LEN,
     newline=iso.DEFAULT_NEWLINE,
 )
@@ -328,11 +328,9 @@ when calling the functions.
 ...     "INF": ["old"],
 ...     "SIZ": ["34"],
 ... }
->>> custom_struct = iso.LineSplitRestreamed(
-...     iso.create_record_struct(
-...       field_terminator=b";",
-...       record_terminator=b"@",
-...     ),
+>>> custom_struct = iso.create_record_struct(
+...     field_terminator=b";",
+...     record_terminator=b"@",
 ...     line_len=20,
 ...     newline=b"\n",
 ... )
@@ -353,8 +351,7 @@ True
 
 ```
 
-The calculated sizes don't count
-the extra line breaking characters of `iso.LineSplitRestreamed`:
+The calculated sizes don't count the extra line breaking characters:
 
 ```python
 >>> simple_data_con.total_len, simple_data_con.base_addr
