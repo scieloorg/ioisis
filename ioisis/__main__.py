@@ -1,3 +1,4 @@
+from codecs import escape_decode
 from functools import reduce
 from io import BytesIO
 import signal
@@ -59,6 +60,44 @@ def file_arg_enc_option(file_ext, mode, default_encoding):
     )
 
 
+def iso_bytes_option_with_default(*args, **kwargs):
+    return click.option(
+        *args,
+        metavar="BYTES",
+        show_default=True,
+        callback=lambda ctx, param, value:
+            escape_decode(value.encode(ctx.iso_encoding))[0],
+        **kwargs
+    )
+
+
+iso_options = [
+    iso_bytes_option_with_default(
+        "field_terminator", "--ft",
+        default=iso.DEFAULT_FIELD_TERMINATOR,
+        help="ISO Field terminator",
+    ),
+    iso_bytes_option_with_default(
+        "record_terminator", "--rt",
+        default=iso.DEFAULT_RECORD_TERMINATOR,
+        help="ISO Record terminator",
+    ),
+    click.option(
+        "line_len", "--line",
+        default=iso.DEFAULT_LINE_LEN,
+        show_default=True,
+        help="Line size to wrap the raw ISO data into several lines. "
+             "If zero, performs no line splitting.",
+    ),
+    iso_bytes_option_with_default(
+        "newline", "--eol",
+        default=iso.DEFAULT_NEWLINE,
+        help="End of line character/string for ISO line splitting. "
+             "Ignored if --line=0.",
+    ),
+]
+
+
 @click.group()
 def main():
     """ISIS data converter using the ioisis Python library."""
@@ -86,12 +125,17 @@ def mst2jsonl(mst_input, jsonl_output, jsonl_encoding, mst_encoding):
 
 
 @main.command()
+@apply_decorators(*iso_options)
 @file_arg_enc_option("iso", "rb", iso.DEFAULT_ISO_ENCODING)
 @file_arg_enc_option("jsonl", "w", DEFAULT_JSONL_ENCODING)
-def iso2jsonl(iso_input, jsonl_output, iso_encoding, jsonl_encoding):
+def iso2jsonl(iso_input, jsonl_output, iso_encoding, jsonl_encoding,
+              **iso_kwargs):
     """ISO2709 to JSON Lines."""
     ensure_ascii = jsonl_output.encoding.lower() == "ascii"
-    for record in iso.iter_records(iso_input, encoding=iso_encoding):
+    record_struct = iso.create_record_struct(**iso_kwargs)
+    for record in iso.iter_records(iso_input,
+                                   record_struct=record_struct,
+                                   encoding=iso_encoding):
         ujson.dump(
             record, jsonl_output,
             ensure_ascii=ensure_ascii,
@@ -102,13 +146,20 @@ def iso2jsonl(iso_input, jsonl_output, iso_encoding, jsonl_encoding):
 
 
 @main.command()
+@apply_decorators(*iso_options)
 @file_arg_enc_option("jsonl", "r", DEFAULT_JSONL_ENCODING)
 @file_arg_enc_option("iso", "wb", iso.DEFAULT_ISO_ENCODING)
-def jsonl2iso(jsonl_input, iso_output, iso_encoding, jsonl_encoding):
+def jsonl2iso(jsonl_input, iso_output, iso_encoding, jsonl_encoding,
+              **iso_kwargs):
     """JSON Lines to ISO2709."""
+    record_struct = iso.create_record_struct(**iso_kwargs)
     for line in jsonl_input:
         record_dict = ujson.loads(line)
-        iso_output.write(iso.dict2bytes(record_dict, encoding=iso_encoding))
+        iso_output.write(iso.dict2bytes(
+            record_dict,
+            record_struct=record_struct,
+            encoding=iso_encoding,
+        ))
         iso_output.flush()
 
 
