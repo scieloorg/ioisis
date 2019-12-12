@@ -251,12 +251,17 @@ def iter_records(iso_file, encoding=DEFAULT_ISO_ENCODING, **kwargs):
         yield con2dict(con, encoding=encoding)
 
 
+def con_pairs(con):
+    """Generator of raw ``(tag, field)`` pairs of ``bytes`` objects."""
+    for dir_entry, field_value in zip(con.dir, con.fields):
+        yield dir_entry.tag.lstrip(b"0") or b"0", field_value
+
+
 def con2dict(con, encoding=DEFAULT_ISO_ENCODING):
     """Parsed construct object to dictionary record converter."""
     result = defaultdict(list)
-    for dir_entry, field_value in zip(con.dir, con.fields):
-        tag = (dir_entry.tag.lstrip(b"0") or b"0").decode("ascii")
-        result[tag].append(field_value.decode(encoding))
+    for tag_value, field_value in con_pairs(con):
+        result[tag_value.decode("ascii")].append(field_value.decode(encoding))
     return result
 
 
