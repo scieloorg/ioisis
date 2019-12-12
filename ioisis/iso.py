@@ -255,7 +255,7 @@ def con2dict(con, encoding=DEFAULT_ISO_ENCODING):
     """Parsed construct object to dictionary record converter."""
     result = defaultdict(list)
     for dir_entry, field_value in zip(con.dir, con.fields):
-        tag = dir_entry.tag.lstrip(b"0").decode("ascii") or b"0"
+        tag = (dir_entry.tag.lstrip(b"0") or b"0").decode("ascii")
         result[tag].append(field_value.decode(encoding))
     return result
 
