@@ -12,7 +12,7 @@ from construct import Adapter, Array, Bytes, Check, CheckError, Computed, \
                       Const, Default, Embedded, FocusedSeq, Prefixed, \
                       Rebuild, Select, Struct, Subconstruct, Terminated, this
 
-from .common import should_be_file
+from .common import should_be_file, TightBufferReadOnlyBytesStreamWrapper
 
 
 DEFAULT_FIELD_TERMINATOR = b"#"
@@ -238,7 +238,8 @@ def iter_con(iso_file, record_struct=DEFAULT_RECORD_STRUCT):
     """Generator of records as parsed construct objects."""
     alt_struct = Select(record_struct, Terminated)
     while True:
-        con = alt_struct.parse_stream(iso_file)
+        stream_reader = TightBufferReadOnlyBytesStreamWrapper(iso_file)
+        con = alt_struct.parse_stream(stream_reader)
         if con is None:  # No more records
             return
         yield con
