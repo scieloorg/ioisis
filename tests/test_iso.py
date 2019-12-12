@@ -1,4 +1,8 @@
-from ioisis.iso import con2dict, DEFAULT_RECORD_STRUCT
+import io
+
+from ioisis.iso import con2dict, DEFAULT_RECORD_STRUCT, \
+                       iter_raw_tl, iter_records
+from ioisis.fieldutils import tl2dict, tl_decode
 
 
 def test_tag_zero():
@@ -9,3 +13,13 @@ def test_tag_zero():
     con = DEFAULT_RECORD_STRUCT.parse(iso_data)
     expected = {"0": ["data"]}
     assert con2dict(con, encoding="ascii") == expected
+
+
+def test_converting_iter_raw_tl_result_to_behave_like_iter_records():
+    iso_data = DEFAULT_RECORD_STRUCT.build({
+        "dir": [{"tag": b"100"}, {"tag": b"001"}, {"tag": b"010"}],
+        "fields": ["™©®".encode("utf-8"), b"data ", b" here"],
+    })
+    tl, = iter_raw_tl(io.BytesIO(iso_data))
+    record, = iter_records(io.BytesIO(iso_data), encoding="utf-8")
+    assert record == tl_decode(tl2dict(tl), encoding="utf-8")

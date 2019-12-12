@@ -1,4 +1,4 @@
-from collections import Counter
+from collections import Counter, defaultdict
 import re
 
 
@@ -80,3 +80,20 @@ class SubfieldParser:
                         key += self.percent_d % suffix_int
                 yield key, value
                 key_count[key] += 1
+
+
+def tl2dict(tl):
+    """Converter of a record from a tidy list to a dictionary."""
+    result = defaultdict(list)
+    for tag, field in tl:
+        result[tag].append(field)
+    return result
+
+
+def tl_decode(obj, encoding):
+    if hasattr(obj, "decode"):  # isinstance(obj, bytes)
+        return obj.decode(encoding)
+    if hasattr(obj, "items"):  # isinstance(obj, dict)
+        return {k.decode("ascii"): tl_decode(v, encoding)
+                for k, v in obj.items()}
+    return [tl_decode(value, encoding) for value in obj]

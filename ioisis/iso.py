@@ -257,6 +257,11 @@ def con_pairs(con):
         yield dir_entry.tag.lstrip(b"0") or b"0", field_value
 
 
+def iter_raw_tl(iso_file, **kwargs):
+    for con in iter_con(iso_file, **kwargs):
+        yield list(con_pairs(con))
+
+
 def con2dict(con, encoding=DEFAULT_ISO_ENCODING):
     """Parsed construct object to dictionary record converter."""
     result = defaultdict(list)
