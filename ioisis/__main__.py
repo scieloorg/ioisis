@@ -1,5 +1,6 @@
 from codecs import escape_decode
 from functools import reduce
+from inspect import signature
 from io import BytesIO
 import signal
 import sys
@@ -8,10 +9,17 @@ import click
 import ujson
 
 from . import iso, mst
+from .fieldutils import SubfieldParser, tl_decode, tl2dict
 
 
 DEFAULT_JSONL_ENCODING = "utf-8"
 INPUT_PATH = object()
+
+APPLY_TL_MODE = {  # Arguments are a tidy list and a subfield parser
+    "field": lambda tl, sfp: tl,
+    "pairs": lambda tl, sfp: [(k, sfp(v)) for k, v in tl],
+    "nest": lambda tl, sfp: [(k, dict(sfp(v))) for k, v in tl],
+}
 
 
 def apply_decorators(*decorators):
@@ -71,6 +79,12 @@ def iso_bytes_option_with_default(*args, **kwargs):
     )
 
 
+def kw_call(func, *args, **kwargs):
+    """Call ``func`` without the extra unknown keywords."""
+    sig_keys = signature(func).parameters.keys()
+    return func(*args, **{k: kwargs[k] for k in sig_keys if k in kwargs})
+
+
 iso_options = [
     iso_bytes_option_with_default(
         "field_terminator", "--ft",
@@ -94,6 +108,72 @@ iso_options = [
         default=iso.DEFAULT_NEWLINE,
         help="End of line character/string for ISO line splitting. "
              "Ignored if --line=0.",
+    ),
+]
+
+
+jsonl_mode_option = click.option(
+    "--mode", "-m",
+    type=click.Choice(APPLY_TL_MODE.keys(), case_sensitive=False),
+    default="field",
+    help="Mode of JSONL record structure processing "
+         "and of field/subfield parsing.",
+)
+
+
+subfield_options = [
+    click.option(
+        "--prefix",
+        metavar="BYTES",
+        default=b"^",
+        show_default=True,
+        callback=lambda ctx, param, value:
+            escape_decode(value.encode("ascii"))[0],
+        help="Subfield prefix mark."
+    ),
+    click.option(
+        "--length",
+        default=1,
+        show_default=True,
+        help="Subfield key length in bytes."
+    ),
+    click.option(
+        "--lower/--no-lower",
+        default=True,
+        show_default=True,
+        help="Put subfield keys in lower case, "
+             "making them case insensitive."
+    ),
+    click.option(
+        "--first",
+        metavar="BYTES",
+        default=b"_",
+        show_default=True,
+        callback=lambda ctx, param, value:
+            escape_decode(value.encode("ascii"))[0],
+        help="Key to be used for the first keyless subfield."
+    ),
+    click.option(
+        "--empty/--no-empty",
+        default=False,
+        show_default=True,
+        help="Keep subfield pairs with empty values."
+    ),
+    click.option(
+        "--number/--no-number",
+        default=True,
+        show_default=True,
+        help="Add a number suffix to the subfield keys "
+             "that have already appeared before for the same field. "
+             "The suffix numbers start in 1."
+    ),
+    click.option(
+        "--zero/--no-zero",
+        default=False,
+        show_default=True,
+        help='Add the "0" suffix '
+             "to the first of each distinct subfield key. "
+             "Has no effect when --no-number."
     ),
 ]
 
@@ -126,18 +206,20 @@ def mst2jsonl(mst_input, jsonl_output, jsonl_encoding, mst_encoding):
 
 @main.command()
 @apply_decorators(*iso_options)
+@jsonl_mode_option
+@apply_decorators(*subfield_options)
 @file_arg_enc_option("iso", "rb", iso.DEFAULT_ISO_ENCODING)
 @file_arg_enc_option("jsonl", "w", DEFAULT_JSONL_ENCODING)
-def iso2jsonl(iso_input, jsonl_output, iso_encoding, jsonl_encoding,
-              **iso_kwargs):
+def iso2jsonl(iso_input, jsonl_output, iso_encoding, mode, **kwargs):
     """ISO2709 to JSON Lines."""
     ensure_ascii = jsonl_output.encoding.lower() == "ascii"
-    record_struct = iso.create_record_struct(**iso_kwargs)
-    for record in iso.iter_records(iso_input,
-                                   record_struct=record_struct,
-                                   encoding=iso_encoding):
+    record_struct = kw_call(iso.create_record_struct, **kwargs)
+    sfp = kw_call(SubfieldParser, **kwargs)
+    for tl in iso.iter_raw_tl(iso_input, record_struct=record_struct):
+        record = tl2dict(APPLY_TL_MODE[mode](tl, sfp))
         ujson.dump(
-            record, jsonl_output,
+            tl_decode(record, encoding=iso_encoding),
+            jsonl_output,
             ensure_ascii=ensure_ascii,
             escape_forward_slashes=False,
         )
