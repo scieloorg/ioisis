@@ -2,7 +2,7 @@ import io
 
 from ioisis.iso import con2dict, DEFAULT_RECORD_STRUCT, \
                        iter_raw_tl, iter_records
-from ioisis.fieldutils import tl2dict, tl_decode
+from ioisis.fieldutils import tl2record, tl_decode
 
 
 def test_tag_zero():
@@ -22,4 +22,4 @@ def test_converting_iter_raw_tl_result_to_behave_like_iter_records():
     })
     tl, = iter_raw_tl(io.BytesIO(iso_data))
     record, = iter_records(io.BytesIO(iso_data), encoding="utf-8")
-    assert record == tl_decode(tl2dict(tl), encoding="utf-8")
+    assert record == tl_decode(tl2record(tl), encoding="utf-8")

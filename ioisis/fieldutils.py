@@ -144,10 +144,18 @@ class SubfieldParser:
                 raise ValueError(f"Invalid subfield[{idx}] value {vs!r}")
 
 
-def tl2dict(tl):
+def tl2record(tl, sfp=None, mode="field"):
     """Converter of a record from a tidy list to a dictionary."""
+    if mode in "field":
+        items = tl
+    elif mode == "pairs":
+        items = [(k, sfp(v)) for k, v in tl]
+    elif mode == "nest":
+        items = [(k, dict(sfp(v))) for k, v in tl]
+    else:
+        raise ValueError(f"Unknown mode {mode!r}")
     result = defaultdict(list)
-    for tag, field in tl:
+    for tag, field in items:
         result[tag].append(field)
     return result
 

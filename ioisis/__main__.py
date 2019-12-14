@@ -9,17 +9,11 @@ import click
 import ujson
 
 from . import iso, mst
-from .fieldutils import SubfieldParser, tl_decode, tl2dict
+from .fieldutils import SubfieldParser, tl_decode, tl2record
 
 
 DEFAULT_JSONL_ENCODING = "utf-8"
 INPUT_PATH = object()
-
-APPLY_TL_MODE = {  # Arguments are a tidy list and a subfield parser
-    "field": lambda tl, sfp: tl,
-    "pairs": lambda tl, sfp: [(k, sfp(v)) for k, v in tl],
-    "nest": lambda tl, sfp: [(k, dict(sfp(v))) for k, v in tl],
-}
 
 
 def apply_decorators(*decorators):
@@ -114,7 +108,7 @@ iso_options = [
 
 jsonl_mode_option = click.option(
     "--mode", "-m",
-    type=click.Choice(APPLY_TL_MODE.keys(), case_sensitive=False),
+    type=click.Choice(["field", "pairs", "nest"], case_sensitive=False),
     default="field",
     help="Mode of JSONL record structure processing "
          "and of field/subfield parsing.",
@@ -216,7 +210,7 @@ def iso2jsonl(iso_input, jsonl_output, iso_encoding, mode, **kwargs):
     record_struct = kw_call(iso.create_record_struct, **kwargs)
     sfp = kw_call(SubfieldParser, **kwargs)
     for tl in iso.iter_raw_tl(iso_input, record_struct=record_struct):
-        record = tl2dict(APPLY_TL_MODE[mode](tl, sfp))
+        record = tl2record(tl, sfp, mode)
         ujson.dump(
             tl_decode(record, encoding=iso_encoding),
             jsonl_output,
