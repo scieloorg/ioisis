@@ -1,4 +1,5 @@
 from collections import Counter, defaultdict
+from itertools import zip_longest
 import re
 
 
@@ -49,6 +50,8 @@ class SubfieldParser:
     """
     def __init__(self, prefix, *, length=1, lower=False, first=None,
                  empty=False, number=True, zero=False):
+        self.prefix = prefix
+        self.length = length
         self.lower = lower
         self.empty = empty
         self.number = number
@@ -66,8 +69,15 @@ class SubfieldParser:
 
         if first is None:
             self.first = regex_str[:0]  # Empty bytes or str
+        elif lower:
+            self.first = first.lower()
         else:
             self.first = first
+
+        if self.number and self.zero:
+            self.fz = self.first + (self.percent_d % 0)
+        else:
+            self.fz = self.first
 
     def __call__(self, field):
         """Generate (key, value) pairs for each subfields in a field."""
@@ -76,7 +86,7 @@ class SubfieldParser:
             if self.empty or value:
                 if not key:  # PyPy: empty key is always str, not bytes
                     key = self.first
-                if self.lower:
+                elif self.lower:
                     key = key.lower()
                 if self.number:
                     suffix_int = key_count[key]
@@ -84,6 +94,54 @@ class SubfieldParser:
                     if self.zero or suffix_int:
                         key += self.percent_d % suffix_int
                 yield key, value
+
+    def unparse(self, *subfields, check=True):
+        """Build the field from the ordered subfield pairs.
+
+        Parameters
+        ----------
+        *subfields
+            Subfields as ``(key, value)`` pairs (tuples)
+            of ``bytes`` or str``.
+        check : bool
+            Force checking if this SubfieldParser
+            would generate exactly the same subfields from the result.
+            That won't happen if the input can't be created
+            by this SubfieldParser instance,
+            so it's a way to check the number suffixes,
+            empty subfields, subfields keys in upper case,
+            and invalid contents like a subfield inside another.
+        """
+        blocks = []
+        if subfields and ((subfields[0][0] == self.fz) or
+                          (self.lower and subfields[0][0].lower() == self.fz)):
+            blocks.append(subfields[0][1])
+            remaining = subfields[1:]
+        else:
+            remaining = subfields
+
+        for key, value in remaining:
+            if self.empty or value:
+                if len(key) < self.length:
+                    raise ValueError(f"Incomplete key data {key!r}")
+                if self.lower:
+                    key = key.lower()
+                blocks.append(self.prefix + key[:self.length] + value)
+
+        result = self.prefix[:0].join(blocks)
+        if check:
+            self._parse_check(result, *subfields)
+        return result
+
+    def _parse_check(self, field, *subfields):
+        """Check if the subfields are the parsed field."""
+        parsed = self(field)
+        pairs_of_pairs = zip_longest(parsed, subfields, fillvalue=(None, None))
+        for idx, ((kp, vp), (ks, vs)) in enumerate(pairs_of_pairs):
+            if ks != kp:
+                raise ValueError(f"Invalid subfield[{idx}] key {ks!r}")
+            if vs != vp:
+                raise ValueError(f"Invalid subfield[{idx}] value {vs!r}")
 
 
 def tl2dict(tl):

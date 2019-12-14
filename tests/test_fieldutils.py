@@ -192,3 +192,38 @@ def test_sfp_call(field, expected, kwargs):
     assert isinstance(result, types.GeneratorType)
     result_list = list(result)
     assert result_list == expected
+
+
+@pytest.mark.parametrize("field, expected, kwargs", SFP_TEST_PARAMS)
+def test_sfp_unparse_check(field, expected, kwargs):
+    sfp = SubfieldParser(**kwargs)
+    valid_resynth = sfp.unparse(*expected, check=True)  # Should not raise
+    assert isinstance(valid_resynth, type(field))
+
+    # It's resynthesizable when empty is True and lower is False ...
+    kwargs_etlf = {**kwargs, "empty": True, "lower": False}
+    sfp_etlf = SubfieldParser(**kwargs_etlf)
+    unexpected = list(sfp_etlf(field))  # Full data for resynthesis
+    assert sfp_etlf.unparse(*unexpected) == field
+
+    # ... as well as when these options makes no difference
+    rf_empty = sfp.empty or all(v for k, v in unexpected[1:])
+    rf_lower = not sfp.lower or all(k == k.lower() for k, v in unexpected[1:])
+    is_resynthesizable = rf_empty and rf_lower
+    assert is_resynthesizable == (field == valid_resynth)
+
+    # We can also use the sfp.unparse(*unexpected),
+    # mixing the SubfieldParser instance and subfields pairs
+    # to resynthesize the field data, but that might raise on checking:
+    # It works when the field is resynthesizable
+    # and its first key is matching
+    has_first = expected and sfp.fz == expected[0][0]
+    is_first_case_lower_valid = kwargs.get("first", sfp.first) == sfp.first
+    can_mix = is_resynthesizable and is_first_case_lower_valid
+    can_check = can_mix and has_first
+    assert sfp.unparse(*unexpected, check=can_check) == valid_resynth
+    if not has_first:
+        assert sfp.unparse(*unexpected[1:], check=can_mix) == valid_resynth
+    if not can_check:
+        with pytest.raises(ValueError):
+            sfp.unparse(*unexpected, check=True)
