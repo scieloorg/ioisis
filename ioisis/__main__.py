@@ -183,6 +183,36 @@ subfield_unparse_check_option = click.option(
 )
 
 
+mst_metadata_filtering_options = [
+    click.option(
+        "only_active", "--only-active/--all",
+        default=False,
+        show_default=True,
+        help="Select only records whose status is ACTIVE.",
+    ),
+    click.option(
+        "--prepend-active/--no-active",
+        default=False,
+        show_default=True,
+        help='Prepend a synthesized "active" field from the status, '
+             'whose value might be "0" (false) or "1" (true).',
+    ),
+    click.option(
+        "--prepend-mfn/--no-mfn",
+        default=False,
+        show_default=True,
+        help='Prepend the "mfn" field.',
+    ),
+    click.option(
+        "--prepend-status/--no-status",
+        default=False,
+        show_default=True,
+        help='Prepend the "status" field from the record metadata, '
+             'whose value might be "ACTIVE", "LOGDEL", or "PHYDEL".',
+    ),
+]
+
+
 @click.group()
 def main():
     """ISIS data converter using the ioisis Python library."""
@@ -194,12 +224,20 @@ def main():
 
 
 @main.command()
+@apply_decorators(*mst_metadata_filtering_options)
+@jsonl_mode_option
+@apply_decorators(*subfield_options)
 @file_arg_enc_option("mst", INPUT_PATH, mst.DEFAULT_MST_ENCODING)
 @file_arg_enc_option("jsonl", "w", DEFAULT_JSONL_ENCODING)
-def mst2jsonl(mst_input, jsonl_output, jsonl_encoding, mst_encoding):
+def mst2jsonl(mst_input, jsonl_output, mst_encoding, mode, **kwargs):
     """MST+XRF to JSON Lines."""
     ensure_ascii = jsonl_output.encoding.lower() == "ascii"
-    for record in mst.iter_records(mst_input, encoding=mst_encoding):
+    kwargs_menc = {key: kwargs[key].decode(mst_encoding)
+                   for key in ["prefix", "first"]}
+    sfp = kw_call(SubfieldParser, **{**kwargs, **kwargs_menc})
+    itl = kw_call(mst.iter_tl, mst_input, **kwargs, encoding=mst_encoding)
+    for tl_decoded in itl:
+        record = tl2record(tl_decoded, sfp, mode)
         ujson.dump(
             record, jsonl_output,
             ensure_ascii=ensure_ascii,
