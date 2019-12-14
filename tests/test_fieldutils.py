@@ -9,6 +9,7 @@ from ioisis.fieldutils import SubfieldParser
 SFP_SIGNATURE = signature(SubfieldParser)
 SFP_DEFAULT_EMPTY = SFP_SIGNATURE.parameters["empty"].default
 SFP_DEFAULT_LENGTH = SFP_SIGNATURE.parameters["length"].default
+SFP_DEFAULT_LOWER = SFP_SIGNATURE.parameters["lower"].default
 
 SFP_DATA = {  # Items are {id: (field, expected, kwargs)}
     # Empty input
@@ -131,9 +132,19 @@ SFP_DATA = {  # Items are {id: (field, expected, kwargs)}
         [("first", "")],
         dict(prefix="^", lower=True, first="FIRST", empty=True),
     ),
+    "lower_empty_no_first_number": (
+        "^ASOME^1DATA^AHERE",
+        [("", ""), ("a", "SOME"), ("1", "DATA"), ("a1", "HERE")],
+        dict(prefix="^", lower=True, empty=True, number=True),
+    ),
+    "lower_no_empty_not_resynthesizable": (
+        "^ASOME^1^A^2^a^3DATA^a^AHERE^a¿",
+        [("a", "SOME"), ("3", "DATA"), ("a1", "HERE"), ("a2", "¿")],
+        dict(prefix="^", lower=True, empty=False, number=True),
+    ),
 }
 
-# In SFP_DATA, either empty is False or field == resynth
+# In SFP_DATA, either empty is False, lower is True or field == resynth
 SFP_DATA_FIELD_RESYNTH_ASSUMING_EMPTY = {
     id_: expected[0][1] + "".join(
         kwargs["prefix"] + k[:kwargs.get("length", SFP_DEFAULT_LENGTH)] + v
@@ -143,6 +154,7 @@ SFP_DATA_FIELD_RESYNTH_ASSUMING_EMPTY = {
     if expected
 }
 assert all(not kwargs.get("empty", SFP_DEFAULT_EMPTY)
+           or kwargs.get("lower", SFP_DEFAULT_LOWER)
            or field == SFP_DATA_FIELD_RESYNTH_ASSUMING_EMPTY[id_]
            for id_, (field, expected, kwargs) in SFP_DATA.items())
 
