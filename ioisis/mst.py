@@ -51,3 +51,33 @@ def iter_records(mst_filename, encoding=DEFAULT_MST_ENCODING):
                     tag = field.getId()
                     result[tag].append(field.getContent())
                 yield result
+
+
+@generator_blocking_process
+def iter_tl(
+    mst_filename,
+    encoding=DEFAULT_MST_ENCODING,
+    only_active=False,
+    prepend_active=False,
+    prepend_mfn=False,
+    prepend_status=False,
+):
+    check_bruma()
+    with jvm(domains=["bruma"], classpath=BRUMA_JAR):
+        from bruma.master import MasterFactory, Record
+        mf = MasterFactory.getInstance(mst_filename).setEncoding(encoding)
+        with closing(mf.open()) as mst:
+            for record in mst:
+                is_active = record.getStatus() == Record.Status.ACTIVE
+                if only_active and not is_active:
+                    continue
+                result = []
+                if prepend_active:
+                    result.append(("active", "%d" % is_active))
+                if prepend_mfn:
+                    result.append(("mfn", "%d" % record.getMfn()))
+                if prepend_status:  # ACTIVE, LOGDEL or PHYDEL
+                    result.append(("status", record.getStatus().name()))
+                for field in record.getFields():
+                    result.append((field.getId(), field.getContent()))
+                yield result

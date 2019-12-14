@@ -262,6 +262,12 @@ def iter_raw_tl(iso_file, **kwargs):
         yield list(con_pairs(con))
 
 
+def iter_tl(iso_file, encoding=DEFAULT_ISO_ENCODING, **kwargs):
+    for tl in iter_raw_tl(iso_file, **kwargs):
+        yield [(tag.decode("ascii"), field.decode(encoding))
+               for tag, field in tl]
+
+
 def con2dict(con, encoding=DEFAULT_ISO_ENCODING):
     """Parsed construct object to dictionary record converter."""
     result = defaultdict(list)
