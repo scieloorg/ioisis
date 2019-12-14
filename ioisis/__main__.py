@@ -173,6 +173,16 @@ subfield_options = [
 ]
 
 
+subfield_unparse_check_option = click.option(
+    "--sfcheck/--no-sfcheck",
+    default=True,
+    show_default=True,
+    help="Check if the subfield unparsing rules match its contents, "
+         "that is, check if the field generated from the subfields "
+         "would produce the same subfields."
+)
+
+
 @click.group()
 def main():
     """ISIS data converter using the ioisis Python library."""
@@ -226,12 +236,13 @@ def iso2jsonl(iso_input, jsonl_output, iso_encoding, mode, **kwargs):
 @apply_decorators(*iso_options)
 @jsonl_mode_option
 @apply_decorators(*subfield_options)
+@subfield_unparse_check_option
 @file_arg_enc_option("jsonl", "r", DEFAULT_JSONL_ENCODING)
 @file_arg_enc_option("iso", "wb", iso.DEFAULT_ISO_ENCODING)
 def jsonl2iso(jsonl_input, iso_output, iso_encoding, mode, **kwargs):
     """JSON Lines to ISO2709."""
     record_struct = kw_call(iso.create_record_struct, **kwargs)
-    sfp = kw_call(SubfieldParser, **kwargs)
+    sfp = kw_call(SubfieldParser, **kwargs, check=kwargs["sfcheck"])
     for line in jsonl_input:
         record = nest_encode(ujson.loads(line), encoding=iso_encoding)
         tl = record2tl(record, sfp, mode)

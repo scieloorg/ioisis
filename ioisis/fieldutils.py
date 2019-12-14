@@ -3,6 +3,9 @@ from itertools import zip_longest
 import re
 
 
+_EMPTY = object()
+
+
 class SubfieldParser:
     """Generate subfield pairs from the given value on calling.
 
@@ -32,6 +35,9 @@ class SubfieldParser:
         so that all keys should have a suffix
         (including the first/leading "keyless" pair).
         Has no effect if ``number`` is ``False``.
+    check : bool
+        Check data consistency on unparsing.
+        See ``SubfieldParser.unparse`` for more information.
 
     Examples
     --------
@@ -49,13 +55,14 @@ class SubfieldParser:
 
     """
     def __init__(self, prefix, *, length=1, lower=False, first=None,
-                 empty=False, number=True, zero=False):
+                 empty=False, number=True, zero=False, check=True):
         self.prefix = prefix
         self.length = length
         self.lower = lower
         self.empty = empty
         self.number = number
         self.zero = zero
+        self.check = check
 
         escaped_prefix = re.escape(prefix)
         regex_str = b"(?:^|(?<=%s(.{%d})))((?:(?!%s.{%d}).)*)"
@@ -95,7 +102,7 @@ class SubfieldParser:
                         key += self.percent_d % suffix_int
                 yield key, value
 
-    def unparse(self, *subfields, check=True):
+    def unparse(self, *subfields, check=_EMPTY):
         """Build the field from the ordered subfield pairs.
 
         Parameters
@@ -129,7 +136,8 @@ class SubfieldParser:
                 blocks.append(self.prefix + key[:self.length] + value)
 
         result = self.prefix[:0].join(blocks)
-        if check:
+        has_to_check = self.check if check is _EMPTY else check
+        if has_to_check:
             self._parse_check(result, *subfields)
         return result
 
