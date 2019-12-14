@@ -12,7 +12,7 @@ from construct import Adapter, Array, Bytes, Check, CheckError, Computed, \
                       Const, Default, Embedded, FocusedSeq, Prefixed, \
                       Rebuild, Select, Struct, Subconstruct, Terminated, this
 
-from .common import should_be_file, TightBufferReadOnlyBytesStreamWrapper
+from .streamutils import should_be_file, TightBufferReadOnlyBytesStreamWrapper
 
 
 DEFAULT_FIELD_TERMINATOR = b"#"
