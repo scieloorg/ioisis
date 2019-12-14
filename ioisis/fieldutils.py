@@ -50,36 +50,40 @@ class SubfieldParser:
     def __init__(self, prefix, *, length=1, lower=False, first=None,
                  empty=False, number=True, zero=False):
         self.lower = lower
-        self.first = first
         self.empty = empty
         self.number = number
         self.zero = zero
 
         escaped_prefix = re.escape(prefix)
-        regex_str = b"(?:^|%s(.{%d}))(.*?)(?=$|%s.{%d})"
+        regex_str = b"(?:^|(?<=%s(.{%d})))((?:(?!%s.{%d}).)*)"
         if isinstance(prefix, str):
             regex_str = regex_str.decode("ascii")
             self.percent_d = "%d"
         else:
             self.percent_d = b"%d"
-        regex_str %= escaped_prefix, length, escaped_prefix, length
+        regex_str %= (escaped_prefix, length) * 2
         self.subfields_regex = re.compile(regex_str, re.DOTALL)
+
+        if first is None:
+            self.first = regex_str[:0]  # Empty bytes or str
+        else:
+            self.first = first
 
     def __call__(self, field):
         """Generate (key, value) pairs for each subfields in a field."""
         key_count = Counter()
         for key, value in self.subfields_regex.findall(field):
             if self.empty or value:
-                if self.first and not key:
+                if not key:  # PyPy: empty key is always str, not bytes
                     key = self.first
                 if self.lower:
                     key = key.lower()
                 if self.number:
                     suffix_int = key_count[key]
+                    key_count[key] += 1
                     if self.zero or suffix_int:
                         key += self.percent_d % suffix_int
                 yield key, value
-                key_count[key] += 1
 
 
 def tl2dict(tl):
