@@ -1,9 +1,16 @@
+from inspect import signature
+import types
+
 import pytest
 
 from ioisis.fieldutils import SubfieldParser
 
 
-SFP_CALL_TEST_TABLE = {  # Items are {id: (field, expected, kwargs)}
+SFP_SIGNATURE = signature(SubfieldParser)
+SFP_DEFAULT_EMPTY = SFP_SIGNATURE.parameters["empty"].default
+SFP_DEFAULT_LENGTH = SFP_SIGNATURE.parameters["length"].default
+
+SFP_DATA = {  # Items are {id: (field, expected, kwargs)}
     # Empty input
     "empty_false":
         ("", [], dict(prefix="x")),
@@ -126,33 +133,50 @@ SFP_CALL_TEST_TABLE = {  # Items are {id: (field, expected, kwargs)}
     ),
 }
 
+# In SFP_DATA, either empty is False or field == resynth
+SFP_DATA_FIELD_RESYNTH_ASSUMING_EMPTY = {
+    id_: expected[0][1] + "".join(
+        kwargs["prefix"] + k[:kwargs.get("length", SFP_DEFAULT_LENGTH)] + v
+        for k, v in expected[1:]
+    )
+    for id_, (field, expected, kwargs) in SFP_DATA.items()
+    if expected
+}
+assert all(not kwargs.get("empty", SFP_DEFAULT_EMPTY)
+           or field == SFP_DATA_FIELD_RESYNTH_ASSUMING_EMPTY[id_]
+           for id_, (field, expected, kwargs) in SFP_DATA.items())
 
-@pytest.mark.parametrize(
-    "field, expected, kwargs",
-    [pytest.param(*v, id=k) for k, v in SFP_CALL_TEST_TABLE.items()],
-)
+# Copy of tests where empty=False but it can also be True
+SFP_EXTRA_DATA = {
+    id_ + "_with_empty_true": (field, expected, {**kwargs, "empty": True})
+    for id_, (field, expected, kwargs) in SFP_DATA.items()
+    if expected  # When empty=True, the result has at least one subfield
+    and not kwargs.get("empty", SFP_DEFAULT_EMPTY)
+    and field == SFP_DATA_FIELD_RESYNTH_ASSUMING_EMPTY[id_]
+}
+assert SFP_EXTRA_DATA  # We know there is at least one such case
+
+# Build the test params to create the tests for both str and bytes
+SFP_TEST_PARAMS_STR = [pytest.param(*v, id=k + "_decoded_str")
+                       for k, v in {**SFP_DATA, **SFP_EXTRA_DATA}.items()]
+SFP_TEST_PARAMS_BYTES = [
+    pytest.param(
+        field.encode("utf-8"),
+        [(k.encode("utf-8"), v.encode("utf-8")) for k, v in expected],
+        {k: v.encode("utf-8") if isinstance(v, str) else v
+         for k, v in kwargs.items()},
+        id=id_ + "_utf8_encoded_bytes",
+    )
+    for id_, (field, expected, kwargs)
+    in {**SFP_DATA, **SFP_EXTRA_DATA}.items()
+]
+SFP_TEST_PARAMS = SFP_TEST_PARAMS_STR + SFP_TEST_PARAMS_BYTES
+
+
+@pytest.mark.parametrize("field, expected, kwargs", SFP_TEST_PARAMS)
 def test_sfp_call(field, expected, kwargs):
-    # When empty=True it should be possible to resynthesize the field
-    # (This first step is actually testing the test input)
-    prefix = kwargs["prefix"]
-    if expected:
-        length = kwargs.get("length", 1)
-        resynth = expected[0][1] + "".join(prefix + k[:length] + v
-                                           for k, v in expected[1:])
-        if kwargs.get("empty", False):
-            assert resynth == field
-        elif resynth == field:  # Then empty should make no difference
-            test_sfp_call(field, expected, {**kwargs, "empty": True})
-
-    # Test for the given [decoded] str parameters
-    sfp_str = SubfieldParser(**kwargs)
-    assert list(sfp_str(field)) == expected
-
-    # Encode all str parameters and test with [encoded] bytes
-    field_bytes = field.encode("utf-8")
-    expected_bytes = [(k.encode("utf-8"), v.encode("utf-8"))
-                      for k, v in expected]
-    kwargs_bytes = {k: v.encode("utf-8") if isinstance(v, str) else v
-                    for k, v in kwargs.items()}
-    sfp_bytes = SubfieldParser(**kwargs_bytes)
-    assert list(sfp_bytes(field_bytes)) == expected_bytes
+    sfp = SubfieldParser(**kwargs)
+    result = sfp(field)
+    assert isinstance(result, types.GeneratorType)
+    result_list = list(result)
+    assert result_list == expected
