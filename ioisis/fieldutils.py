@@ -160,6 +160,22 @@ def tl2record(tl, sfp=None, mode="field"):
     return result
 
 
+def record2tl(record, sfp=None, mode="field"):
+    items = []
+    for k, values in record.items():
+        for v in values:
+            items.append((k, v))
+
+    if mode in "field":
+        return items
+    elif mode == "pairs":
+        return [(k, sfp.unparse(*v)) for k, v in items]
+    elif mode == "nest":
+        return [(k, sfp.unparse(*v.items())) for k, v in items]
+    else:
+        raise ValueError(f"Unknown mode {mode!r}")
+
+
 def tl_decode(obj, encoding):
     if hasattr(obj, "decode"):  # isinstance(obj, bytes)
         return obj.decode(encoding)
