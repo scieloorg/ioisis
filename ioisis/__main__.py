@@ -9,7 +9,8 @@ import click
 import ujson
 
 from . import iso, mst
-from .fieldutils import nest_decode, SubfieldParser, tl2record
+from .fieldutils import nest_decode, nest_encode, SubfieldParser, \
+                        tl2record, record2tl
 
 
 DEFAULT_JSONL_ENCODING = "utf-8"
@@ -223,19 +224,19 @@ def iso2jsonl(iso_input, jsonl_output, iso_encoding, mode, **kwargs):
 
 @main.command()
 @apply_decorators(*iso_options)
+@jsonl_mode_option
+@apply_decorators(*subfield_options)
 @file_arg_enc_option("jsonl", "r", DEFAULT_JSONL_ENCODING)
 @file_arg_enc_option("iso", "wb", iso.DEFAULT_ISO_ENCODING)
-def jsonl2iso(jsonl_input, iso_output, iso_encoding, jsonl_encoding,
-              **iso_kwargs):
+def jsonl2iso(jsonl_input, iso_output, iso_encoding, mode, **kwargs):
     """JSON Lines to ISO2709."""
-    record_struct = iso.create_record_struct(**iso_kwargs)
+    record_struct = kw_call(iso.create_record_struct, **kwargs)
+    sfp = kw_call(SubfieldParser, **kwargs)
     for line in jsonl_input:
-        record_dict = ujson.loads(line)
-        iso_output.write(iso.dict2bytes(
-            record_dict,
-            record_struct=record_struct,
-            encoding=iso_encoding,
-        ))
+        record = nest_encode(ujson.loads(line), encoding=iso_encoding)
+        tl = record2tl(record, sfp, mode)
+        iso_bytes = iso.tl2bytes(tl, record_struct=record_struct)
+        iso_output.write(iso_bytes)
         iso_output.flush()
 
 
