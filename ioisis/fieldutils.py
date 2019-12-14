@@ -176,10 +176,21 @@ def record2tl(record, sfp=None, mode="field"):
         raise ValueError(f"Unknown mode {mode!r}")
 
 
-def tl_decode(obj, encoding):
+def nest_decode(obj, encoding):
+    """Decode records in dict or tidy list format."""
     if hasattr(obj, "decode"):  # isinstance(obj, bytes)
         return obj.decode(encoding)
     if hasattr(obj, "items"):  # isinstance(obj, dict)
-        return {k.decode("ascii"): tl_decode(v, encoding)
+        return {k.decode("ascii"): nest_decode(v, encoding)
                 for k, v in obj.items()}
-    return [tl_decode(value, encoding) for value in obj]
+    return [nest_decode(value, encoding) for value in obj]
+
+
+def nest_encode(obj, encoding):
+    """Encode records in dict or tidy list format."""
+    if hasattr(obj, "encode"):  # isinstance(obj, str)
+        return obj.encode(encoding)
+    if hasattr(obj, "items"):  # isinstance(obj, dict)
+        return {k.encode("ascii"): nest_encode(v, encoding)
+                for k, v in obj.items()}
+    return [nest_encode(value, encoding) for value in obj]

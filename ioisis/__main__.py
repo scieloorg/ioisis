@@ -9,7 +9,7 @@ import click
 import ujson
 
 from . import iso, mst
-from .fieldutils import SubfieldParser, tl_decode, tl2record
+from .fieldutils import nest_decode, SubfieldParser, tl2record
 
 
 DEFAULT_JSONL_ENCODING = "utf-8"
@@ -212,7 +212,7 @@ def iso2jsonl(iso_input, jsonl_output, iso_encoding, mode, **kwargs):
     for tl in iso.iter_raw_tl(iso_input, record_struct=record_struct):
         record = tl2record(tl, sfp, mode)
         ujson.dump(
-            tl_decode(record, encoding=iso_encoding),
+            nest_decode(record, encoding=iso_encoding),
             jsonl_output,
             ensure_ascii=ensure_ascii,
             escape_forward_slashes=False,
