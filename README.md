@@ -21,15 +21,33 @@ ioisis iso2jsonl --jenc ascii file.iso file.jsonl
 # {"tag": ["field", ...], ...}
 ioisis jsonl2iso file.jsonl file.iso
 
-# Indirectly, convert file.mst to file.iso using jq
-ioisis mst2jsonl file.mst \
-| jq -c 'del(.active) | del(.mfn)' \
+# Indirectly, convert active records of file.mst + file.xrf
+# to file.iso, selecting records and filtering out fields with jq
+ioisis mst2jsonl --only-active file.mst \
+| jq -c 'select(.["35"] == ["PRINT"]) | del(.["901"]) | del(.["540"])'
 | ioisis jsonl2iso - file.iso
 ```
 
 By default, the input and output are the standard streams,
 but for MST+XRF input, where the MST must be given
 and the matching XRF will be found based on the file name.
+
+There are several other options to these commands
+intended to customize the process,
+perhaps the most important of these options
+is the `-m/--mode`, which regards to the JSONL field format.
+The valid values for it are:
+
+* `field` (*default*):
+  Use the raw field value string (ignore the subfield parsing options)
+* `pairs`:
+  Split the field string as an array of `[key, value]` subfield pairs
+* `nest`:
+  Split the field string as a `{key: value}` object
+
+When used together with `--no-number`,
+these 3 modes are respectively similar
+to the `-mt1`, `-mt2` and `-mt3` options of `isis2json`.
 
 Try `ioisis --help` for more information.
 
