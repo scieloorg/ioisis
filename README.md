@@ -249,7 +249,8 @@ that doesn't fit with the given sizes?
 >>> iso.DEFAULT_RECORD_STRUCT.build(invalid_dict)
 Traceback (most recent call last):
   ...
-construct.core.StreamError: bytes object of wrong length, expected 1, found 2
+construct.core.StreamError: Error in path (building) -> dir -> len
+bytes object of wrong length, expected 1, found 2
 
 ```
 

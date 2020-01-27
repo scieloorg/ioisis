@@ -9,7 +9,8 @@ from contextlib import closing
 from itertools import accumulate
 
 from construct import Adapter, Array, Bytes, Check, CheckError, Computed, \
-                      Const, Default, Embedded, FocusedSeq, Prefixed, \
+                      Const, Container, Default, ExprAdapter, \
+                      FocusedSeq, Prefixed, RawCopy, \
                       Rebuild, Select, Struct, Subconstruct, Terminated, this
 
 from .streamutils import should_be_file, TightBufferReadOnlyBytesStreamWrapper
@@ -150,25 +151,26 @@ def create_record_struct(
         ),
 
         # Record leader/header (apart from the leading total_len)
-        Embedded(Struct(
-            "status" / Default(Bytes(1), b"0"),
-            "type" / Default(Bytes(1), b"0"),
-            "custom_2" / Default(Bytes(2), b"00"),
-            "coding" / Default(Bytes(1), b"0"),
-            "indicator_count" / Default(IntInASCII(Bytes(1)), 0),
-            "identifier_len" / Default(IntInASCII(Bytes(1)), 0),
-            "base_addr" / Rebuild(IntInASCII(Bytes(5)),
-                                  LEADER_LEN + this._build_dir_len
-                                             + ft_len),
-            "custom_3" / Default(Bytes(3), b"000"),
-            Embedded(Struct(  # Directory entry map
-                "len_len" / Default(IntInASCII(Bytes(1)), DEFAULT_LEN_LEN),
-                "pos_len" / Default(IntInASCII(Bytes(1)), DEFAULT_POS_LEN),
-                "custom_len" / Default(IntInASCII(Bytes(1)),
-                                       DEFAULT_CUSTOM_LEN),
-                "reserved" / Default(Bytes(1), b"0"),
-            )),
-        )),
+        "status" / Default(Bytes(1), b"0"),
+        "type" / Default(Bytes(1), b"0"),
+        "custom_2" / Default(Bytes(2), b"00"),
+        "coding" / Default(Bytes(1), b"0"),
+        "indicator_count" / Default(IntInASCII(Bytes(1)), 0),
+        "identifier_len" / Default(IntInASCII(Bytes(1)), 0),
+        "base_addr" / Rebuild(IntInASCII(Bytes(5)),
+                              LEADER_LEN + this._build_dir_len
+                                         + ft_len),
+        "custom_3" / Default(Bytes(3), b"000"),
+
+        # Directory entry map (trailing part of the leader)
+        "len_len" / Default(IntInASCII(Bytes(1)), DEFAULT_LEN_LEN),
+        "pos_len" / Default(IntInASCII(Bytes(1)), DEFAULT_POS_LEN),
+        "custom_len" / Default(IntInASCII(Bytes(1)),
+                               DEFAULT_CUSTOM_LEN),
+        "reserved" / Default(Bytes(1), b"0"),
+
+        # The ISO leader/header doesn't have the number of fields,
+        # but it can be found from the base address
         "num_fields" / Computed(
             (this.base_addr - LEADER_LEN - ft_len) //
             (TAG_LEN + this.len_len + this.pos_len + this.custom_len)
@@ -214,15 +216,14 @@ def create_record_struct(
     )
 
     # This includes (and checks) the total_len prefix
-    result = Prefixed(
-        lengthfield=IntInASCII(Bytes(TOTAL_LEN_LEN)),
-        subcon=Struct(
-            Embedded(prefixless),
-            "total_len" / Computed(
-                lambda this: this._io.tell() + TOTAL_LEN_LEN
-            ),
-        ),
-        includelength=True,
+    result = ExprAdapter(
+        RawCopy(Prefixed(
+            lengthfield=IntInASCII(Bytes(TOTAL_LEN_LEN)),
+            subcon=prefixless,
+            includelength=True,
+        )),
+        lambda obj, ctx: Container(total_len=obj.length, **obj.value),
+        lambda obj, ctx: {"value": obj},
     )
 
     if line_len is None or line_len == 0:
