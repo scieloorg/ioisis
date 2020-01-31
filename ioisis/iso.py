@@ -6,6 +6,7 @@ https://wiki.bireme.org/pt/img_auth.php/5/5f/2709BR.pdf
 """
 from collections import defaultdict
 from contextlib import closing
+import io
 from itertools import accumulate
 
 from construct import Adapter, Array, Bytes, Check, CheckError, Computed, \
@@ -85,7 +86,36 @@ class LineSplittedBytesIO:
             self._check_eol()
         if self.wbuffer:
             self.substream.write(self.wbuffer)
+            self.wbuffer = b""
             self.substream.write(self.newline)
+
+    tellable = lambda self: self.substream.tellable()
+
+    def tell(self):
+        line_no, col_no = divmod(self.substream.tell(),
+                                 self.line_len + len(self.newline))
+        return line_no * self.line_len + col_no
+
+    seekable = lambda self: self.substream.seekable()
+
+    def seek(self, offset, whence=io.SEEK_SET):
+        if whence == io.SEEK_SET:
+            if offset < 0:
+                raise ValueError("Negative offset")
+            line_no, col_no = divmod(offset, self.line_len)
+            line_start = line_no * (self.line_len + len(self.newline))
+            self.substream.seek(line_start, whence)
+            self.rnext_eol = self.line_len
+            self.read(col_no)
+            return offset
+        elif whence == io.SEEK_CUR:
+            return self.seek(self.substream.tell() + offset, io.SEEK_SET)
+        elif whence == io.SEEK_END:
+            if not self.finished:
+                self.read()  # Just to reach the end of stream
+            return self.seek(max(0, self.substream.tell() + offset),
+                             io.SEEK_SET)
+        raise ValueError("Invalid whence")
 
 
 class LineSplitRestreamed(Subconstruct):
