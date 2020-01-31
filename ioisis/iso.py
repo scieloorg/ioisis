@@ -47,8 +47,8 @@ class LineSplittedBytesIO:
         self.substream = substream
         self.line_len = line_len
         self.newline = newline
-        self.wbuffer = b""
         self.rnext_eol = line_len
+        self.writing = False
 
     def _check_eol(self):
         if self.substream.read(len(self.newline)) != self.newline:
@@ -72,22 +72,28 @@ class LineSplittedBytesIO:
         return b"".join(result)
 
     def write(self, data):
-        self.wbuffer += data
-        result = len(data)
-        while len(self.wbuffer) >= self.line_len:
-            data, self.wbuffer = (self.wbuffer[:self.line_len],
-                                  self.wbuffer[self.line_len:])
-            self.substream.write(data)
-            self.substream.write(self.newline)
+        self.writing = True
+        result = remaining = len(data)
+        while data:
+            buff_len = min(self.rnext_eol, remaining)
+            buff, data = (data[:buff_len], data[buff_len:])
+            self.substream.write(buff)
+            remaining -= buff_len
+            if self.rnext_eol == buff_len:
+                self.substream.write(self.newline)
+                self.rnext_eol = self.line_len
+            else:
+                self.rnext_eol -= buff_len
+                break
         return result
 
     def close(self):
         if self.rnext_eol != self.line_len:
-            self._check_eol()
-        if self.wbuffer:
-            self.substream.write(self.wbuffer)
-            self.wbuffer = b""
-            self.substream.write(self.newline)
+            if self.writing:
+                self.substream.write(self.newline)
+            else:
+                self._check_eol()
+        self.substream = None
 
     tellable = lambda self: self.substream.tellable()
 
