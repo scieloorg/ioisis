@@ -5,22 +5,20 @@ This file format specification can be found at:
 https://wiki.bireme.org/pt/img_auth.php/5/5f/2709BR.pdf
 """
 from collections import defaultdict
-from contextlib import closing
 from itertools import accumulate
 
-from construct import Adapter, Array, Bytes, Check, Computed, \
+from construct import Array, Bytes, Check, Computed, \
                       Const, Container, Default, ExprAdapter, \
                       FocusedSeq, Prefixed, RawCopy, \
-                      Rebuild, Select, Struct, Subconstruct, Terminated, this
+                      Rebuild, Select, Struct, Terminated, this
 
-from .streamutils import LineSplittedBytesStreamWrapper, should_be_file, \
-                         TightBufferReadOnlyBytesStreamWrapper
+from .ccons import IntInASCII, LineSplitRestreamed, \
+                   DEFAULT_LINE_LEN, DEFAULT_NEWLINE
+from .streamutils import should_be_file, TightBufferReadOnlyBytesStreamWrapper
 
 
 DEFAULT_FIELD_TERMINATOR = b"#"
 DEFAULT_RECORD_TERMINATOR = b"#"
-DEFAULT_LINE_LEN = 80
-DEFAULT_NEWLINE = b"\n"
 DEFAULT_ISO_ENCODING = "cp1252"
 
 TOTAL_LEN_LEN = 5
@@ -29,50 +27,6 @@ TAG_LEN = 3
 DEFAULT_LEN_LEN = 4
 DEFAULT_POS_LEN = 5
 DEFAULT_CUSTOM_LEN = 0
-
-
-class IntInASCII(Adapter):
-    """Adapter for Bytes to use it as BCD (Binary-coded decimal)."""
-    def _decode(self, obj, context, path):
-        return int(obj, base=10)
-
-    def _encode(self, obj, context, path):
-        length = self.subcon.sizeof(**context)
-        return (b"%d" % obj).zfill(length)
-
-
-class LineSplitRestreamed(Subconstruct):
-    """Alternative to Restreamed
-    that parses a "line splitted" data,
-    builds the lines appending the ``newline`` character/string,
-    and works properly with a last incomplete chunk.
-    """
-    def __init__(self, subcon, line_len=DEFAULT_LINE_LEN,
-                 newline=DEFAULT_NEWLINE):
-        super().__init__(subcon)
-        self.line_len = line_len
-        self.newline = newline
-
-    def _parse(self, stream, context, path):
-        with closing(LineSplittedBytesStreamWrapper(
-            substream=stream,
-            line_len=self.line_len,
-            newline=self.newline,
-        )) as stream2:
-            return self.subcon._parsereport(stream2, context, path)
-
-    def _build(self, obj, stream, context, path):
-        with closing(LineSplittedBytesStreamWrapper(
-            substream=stream,
-            line_len=self.line_len,
-            newline=self.newline,
-        )) as stream2:
-            self.subcon._build(obj, stream2, context, path)
-        return obj
-
-    def _sizeof(self, context, path):
-        n = self.subcon._sizeof(context, path)
-        return n + (n // self.line_len + 1) * len(self.newline),
 
 
 def create_record_struct(
