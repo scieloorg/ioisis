@@ -52,3 +52,23 @@ class LineSplitRestreamed(Subconstruct):
     def _sizeof(self, context, path):
         n = self.subcon._sizeof(context, path)
         return n + (n // self.line_len + 1) * len(self.newline),
+
+
+class Unnest(Adapter):
+    """Adapter for dict-like containers to unnest (embed) substructures."""
+    def __init__(self, names, subcon):
+        super().__init__(subcon)
+        self.names = list(names)
+
+    def _decode(self, obj, context, path):
+        result = obj.copy()
+        for name in self.names:
+            if name in result:
+                result.update(result.pop(name))
+        return result
+
+    def _encode(self, obj, context, path):
+        result = obj.copy()
+        for name in self.names:
+            result[name] = obj
+        return result
