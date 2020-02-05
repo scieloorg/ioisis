@@ -8,7 +8,7 @@ import sys
 import click
 import ujson
 
-from . import iso, mst
+from . import iso, bruma as mst
 from .fieldutils import nest_decode, nest_encode, SubfieldParser, \
                         tl2record, record2tl
 
