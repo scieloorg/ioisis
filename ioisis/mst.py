@@ -22,6 +22,7 @@ from construct import Array, Byte, Bytes, \
 from .ccons import Unnest
 
 
+DEFAULT_MST_ENCODING = "cp1252"
 DEFAULT_ENDIANNESS = "little"
 DEFAULT_FORMAT = "isis"
 DEFAULT_LOCKABLE = True

@@ -5,13 +5,12 @@ import os
 from urllib.request import urlopen
 
 from .java import generator_blocking_process, jvm
+from .mst import DEFAULT_MST_ENCODING
 
 
 BRUMA_URL = "https://github.com/scieloorg/isis2json/raw/def7327/lib/Bruma.jar"
 BRUMA_JAR = os.path.join(os.path.expanduser("~"), ".ioisis", "Bruma.jar")
 BRUMA_HASH = "a68c3f21ad98a21de49b2eb1c75ccc63bb46f336c1b285ea7fc6d128d29fc57d"
-
-DEFAULT_MST_ENCODING = "cp1252"
 
 
 class BrumaCheckError(Exception):

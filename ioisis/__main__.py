@@ -8,7 +8,7 @@ import sys
 import click
 import ujson
 
-from . import iso, bruma as mst
+from . import bruma, iso, mst
 from .fieldutils import nest_decode, nest_encode, SubfieldParser, \
                         tl2record, record2tl
 
@@ -223,19 +223,19 @@ def main():
         pass  # No SIGPIPE in this OS
 
 
-@main.command()
+@main.command("bruma-mst2jsonl")
 @apply_decorators(*mst_metadata_filtering_options)
 @jsonl_mode_option
 @apply_decorators(*subfield_options)
 @file_arg_enc_option("mst", INPUT_PATH, mst.DEFAULT_MST_ENCODING)
 @file_arg_enc_option("jsonl", "w", DEFAULT_JSONL_ENCODING)
-def mst2jsonl(mst_input, jsonl_output, mst_encoding, mode, **kwargs):
-    """MST+XRF to JSON Lines."""
+def bruma_mst2jsonl(mst_input, jsonl_output, mst_encoding, mode, **kwargs):
+    """MST+XRF to JSON Lines based on a Bruma (requires Java)."""
     ensure_ascii = jsonl_output.encoding.lower() == "ascii"
     kwargs_menc = {key: kwargs[key].decode(mst_encoding)
                    for key in ["prefix", "first"]}
     sfp = kw_call(SubfieldParser, **{**kwargs, **kwargs_menc})
-    itl = kw_call(mst.iter_tl, mst_input, **kwargs, encoding=mst_encoding)
+    itl = kw_call(bruma.iter_tl, mst_input, **kwargs, encoding=mst_encoding)
     for tl_decoded in itl:
         record = tl2record(tl_decoded, sfp, mode)
         ujson.dump(
