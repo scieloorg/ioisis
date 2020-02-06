@@ -22,6 +22,18 @@ from construct import Array, Byte, Bytes, \
 from .ccons import Unnest
 
 
+DEFAULT_ENDIANNESS = "little"
+DEFAULT_FORMAT = "isis"
+DEFAULT_LOCKABLE = True
+DEFAULT_SHIFT = 6
+DEFAULT_SHIFT4IS3 = False
+DEFAULT_MIN_MODULUS = 2
+DEFAULT_PACKED = False
+DEFAULT_FILLER = b"\x00"
+DEFAULT_RECORD_FILLER = b" "
+DEFAULT_CONTROL_LEN = 64
+
+
 def pad_size(modulus, size):
     """Calculate the padding size for the given size in a modulus grid."""
     return (modulus * (size // modulus + 1) - size) % modulus
@@ -42,13 +54,13 @@ class StructCreator:
     endianness : str
         Byte order endianness for all 16/32 bits integer numbers,
         might be "big" or "little" (a.k.a. swapped).
-    mode : str
-        Mode, a string that should either be "isis" or "ffi".
-        The FFI is a mode that supports bigger records,
+    format : str
+        Format mode, a string that should either be "isis" or "ffi".
+        The FFI is a format mode that supports bigger records,
         with sizes up to 2_147_483_647 instead of 32767
         (or twice that plus one if lockable is ``False``).
         To do that,
-        the records in the FFI mode have 4 bytes instead of 2
+        the records in the FFI format mode have 4 bytes instead of 2
         in two leader fields (``mfrl`` and ``base_addr``)
         and two directory fields (``pos`` and ``len``).
     lockable : bool
@@ -90,8 +102,8 @@ class StructCreator:
         If ``False``, it adds a WORD-sized (16 bits) padding
         for DWORD-sized (32 bits) alignment
         in all fields that requires it, that is,
-        this padding filler appears after the ``mfrl`` in ISIS mode,
-        and after ``base_addr`` and ``tag`` in FFI mode.
+        this padding filler appears after the ``mfrl`` in ISIS,
+        and after ``base_addr`` and ``tag`` in FFI.
         The origin of these fillers for data structure alignment
         is historical, coming from the usage of raw structs in C
         without neither ``#pragma pack(2)`` or ``-fpack-struct=2``
@@ -143,19 +155,19 @@ class StructCreator:
     """
     def __init__(
         self,
-        endianness="little",
-        mode="isis",
-        lockable=True,
-        default_shift=6,
-        shift4is3=False,
-        min_modulus=2,
-        packed=False,
-        filler=b"\x00",
+        endianness=DEFAULT_ENDIANNESS,
+        format=DEFAULT_FORMAT,
+        lockable=DEFAULT_LOCKABLE,
+        default_shift=DEFAULT_SHIFT,
+        shift4is3=DEFAULT_SHIFT4IS3,
+        min_modulus=DEFAULT_MIN_MODULUS,
+        packed=DEFAULT_PACKED,
+        filler=DEFAULT_FILLER,
         control_filler=None,
         slack_filler=None,
         block_filler=None,
-        record_filler=b" ",
-        control_len=64,
+        record_filler=DEFAULT_RECORD_FILLER,
+        control_len=DEFAULT_CONTROL_LEN,
     ):
         # Get the actual value for every filler
         self.control_filler = \
@@ -170,8 +182,8 @@ class StructCreator:
         # Validation for inputs that wouldn't break somewhere else
         if endianness not in ["big", "little"]:
             raise ValueError("Invalid endianness")
-        if mode not in ["isis", "ffi"]:
-            raise ValueError("Invalid mode")
+        if format not in ["isis", "ffi"]:
+            raise ValueError("Invalid format mode")
         min_modulus_rounded_to_powerof2 = 1 << (min_modulus.bit_length() - 1)
         if min_modulus <= 0 or min_modulus != min_modulus_rounded_to_powerof2:
             raise ValueError("Value of min_modulus must be "
@@ -186,7 +198,7 @@ class StructCreator:
 
         # Store the inputs
         self.endianness = endianness
-        self.mode = mode
+        self.format = format
         self.lockable = lockable
         self.default_shift = default_shift
         self.shift4is3 = shift4is3
@@ -275,7 +287,7 @@ class StructCreator:
 
     def create_record_struct(self, control_record):
         # Pre-computed lengths and flags
-        ffi = self.mode == "ffi"
+        ffi = self.format == "ffi"
         slacked = not self.packed
         leader_len = 18 + 4 * ffi + 2 * slacked
         dir_entry_len = 6 + 4 * ffi + 2 * (ffi & slacked)
@@ -423,7 +435,7 @@ class StructCreator:
         control_record_struct = self.create_control_record_struct()
         control_record = control_record_struct.parse_stream(mst_stream)
         record_struct = self.create_record_struct(control_record)
-        leader_len = 18 + 4 * (self.mode == "ffi") + 2 * (not self.packed)
+        leader_len = 18 + 4 * (self.format == "ffi") + 2 * (not self.packed)
         rec_or_end_struct = Select(record_struct, ending_struct)
 
         if yield_control_record:
@@ -472,7 +484,7 @@ class StructCreator:
         control_record_struct.build_stream(control_record, mst_stream)
 
         record_struct = self.create_record_struct(control_record)
-        leader_len = 18 + 4 * (self.mode == "ffi") + 2 * (not self.packed)
+        leader_len = 18 + 4 * (self.format == "ffi") + 2 * (not self.packed)
 
         next_mfn = 1
         for record in records:
