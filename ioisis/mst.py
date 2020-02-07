@@ -49,8 +49,11 @@ def tl2con(tl):
         "fields": [],
     }
     for k, v in tl:
-        container["dir"].append({"tag": int(k)})
-        container["fields"].append(v)
+        if k == b"mfn":
+            container["mfn"] = int(v)
+        else:
+            container["dir"].append({"tag": int(k)})
+            container["fields"].append(v)
     return container
 
 
