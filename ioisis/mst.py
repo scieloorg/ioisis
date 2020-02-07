@@ -41,6 +41,19 @@ def con_pairs(con):
         yield b"%d" % dir_entry.tag, field_value
 
 
+def tl2con(tl):
+    """Create a record dict that can be used for MST building
+    from a single tidy list record."""
+    container = {
+        "dir": [],
+        "fields": [],
+    }
+    for k, v in tl:
+        container["dir"].append({"tag": int(k)})
+        container["fields"].append(v)
+    return container
+
+
 def pad_size(modulus, size):
     """Calculate the padding size for the given size in a modulus grid."""
     return (modulus * (size // modulus + 1) - size) % modulus
@@ -493,6 +506,7 @@ class StructCreator:
         if control_record is None:
             control_record = {}
         control_record_struct.build_stream(control_record, mst_stream)
+        mst_stream.flush()
 
         record_struct = self.create_record_struct(control_record)
         leader_len = 18 + 4 * (self.format == "ffi") + 2 * (not self.packed)
@@ -505,8 +519,10 @@ class StructCreator:
                 record["mfn"] = next_mfn
                 next_mfn += 1
             record_struct.build_stream(record, mst_stream)
+            mst_stream.flush()
         last_tell = mst_stream.tell()
         ending_struct.build_stream(None, mst_stream)
+        mst_stream.flush()
 
         next_addr = last_tell + never_split_pad_size(last_tell, leader_len)
         control_record["next_mfn"] = next_mfn
@@ -516,4 +532,5 @@ class StructCreator:
         end_tell = mst_stream.tell()
         mst_stream.seek(0)
         control_record_struct.build_stream(control_record, mst_stream)
+        mst_stream.flush()
         mst_stream.seek(end_tell)

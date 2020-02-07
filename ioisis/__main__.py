@@ -15,6 +15,7 @@ from .fieldutils import nest_decode, nest_encode, SubfieldParser, \
 
 DEFAULT_JSONL_ENCODING = "utf-8"
 INPUT_PATH = object()
+OUTPUT_PATH = object()
 
 
 def apply_decorators(*decorators):
@@ -38,18 +39,31 @@ def encoding_option(file_ext, default, **kwargs):
 
 
 def file_arg_enc_option(file_ext, mode, default_encoding):
-    arg_name = file_ext + "_input"
     arg_kwargs = {}
     if mode is INPUT_PATH:
+        arg_name = file_ext + "_input"
         arg_kwargs["type"] = click.Path(
             dir_okay=False,
             resolve_path=True,
             allow_dash=False,
+            readable=True,
+            writable=False,
+        )
+    elif mode is OUTPUT_PATH:
+        arg_name = file_ext + "_output"
+        arg_kwargs["type"] = click.Path(
+            dir_okay=False,
+            resolve_path=True,
+            allow_dash=False,
+            readable=False,
+            writable=True,
         )
     else:
         arg_kwargs["default"] = "-"
         if "w" in mode:
             arg_name = file_ext + "_output"
+        else:
+            arg_name = file_ext + "_input"
         if "b" in mode:
             arg_kwargs["type"] = click.File(mode)
         else:
@@ -433,6 +447,26 @@ def mst2jsonl(mst_input, jsonl_output, mst_encoding, mode, **kwargs):
         )
         jsonl_output.write("\n")
         jsonl_output.flush()
+
+
+@main.command()
+@apply_decorators(*mst_options)
+@jsonl_mode_option
+@apply_decorators(*subfield_options)
+@subfield_unparse_check_option
+@file_arg_enc_option("jsonl", "r", DEFAULT_JSONL_ENCODING)
+@file_arg_enc_option("mst", OUTPUT_PATH, mst.DEFAULT_MST_ENCODING)
+def jsonl2mst(jsonl_input, mst_output, mst_encoding, mode, **kwargs):
+    """JSON Lines to ISIS/FFI Master File Format."""
+    sfp = kw_call(SubfieldParser, **kwargs, check=kwargs["sfcheck"])
+    mst_sc = kw_call(mst.StructCreator, **kwargs)
+    def generate_records():
+        for line in jsonl_input:
+            record = nest_encode(ujson.loads(line), encoding=mst_encoding)
+            tl = record2tl(record, sfp, mode)
+            yield mst.tl2con(tl)
+    with open(mst_output, "wb") as mst_file:
+        mst_sc.build_stream(generate_records(), mst_file)
 
 
 @main.command()
