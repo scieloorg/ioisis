@@ -1,7 +1,46 @@
 from collections import Counter, defaultdict
-from itertools import zip_longest
+from itertools import cycle, zip_longest
 import re
 
+
+# The UTF-8 bytes (and number of bits to store a code point) are:
+#
+# - 0b0xxx_xxxx: single-byte sequence (ASCII)
+# - 0b10xx_xxxx: continuation byte
+# - 0b110x_xxxx: start byte of a 2-bytes sequence (11 CP bits)
+# - 0b1110_xxxx: start byte of a 3-bytes sequence (16 CP bits)
+# - 0b1111_0xxx: start byte of a 4-bytes sequence (21 CP bits)
+#
+# Code points of ASCII bytes should not be "overlong" UTF-8 sequences:
+# the 2-bytes sequences can encode unicode up to 11 code point bits,
+# but we need to enforce the it to have at least 8 code point bits,
+# so the lowest 2-bytes UTF-8 is 0xc280 (U+0080).
+# Likewise, the last code point is U+10ffff,
+# and a sequence should not represent a code point greater than that,
+# so the highest 4-bytes UTF-8 is 0xf48fbfbf.
+# Sequences should be stored with as fewer bytes as possible,
+# so the smallest 3-bytes UTF-8 is 0xe0a080 (U+0800)
+# and the smallest 4-bytes UTF-8 is 0xf0908080 (U+010000).
+#
+# Apart from that, the code points in the U+D800 to U+DFFF range
+# aren't UTF-8 valid because they had been reserved
+# for encoding data as surrogate pairs in UTF-16.
+# It means that the range from 0xeda080 to 0xedbfbf is invalid.
+#
+# See also RFC3629 (https://tools.ietf.org/html/rfc3629)
+# for an authoritative source of these.
+UTF8_MB_REGEX = re.compile(  # Gets joined UTF-8 multi-byte sequences
+    b"((?:[\\xc2-\\xdf][\\x80-\\xbf]"
+    b" |   \\xe0       [\\xa0-\\xbf][\\x80-\\xbf]"
+    b" |  [\\xe1-\\xec][\\x80-\\xbf][\\x80-\\xbf]"
+    b" |   \\xed       [\\x80-\\x9f][\\x80-\\xbf]"
+    b" |  [\\xee-\\xef][\\x80-\\xbf][\\x80-\\xbf]"
+    b" |   \\xf0       [\\x90-\\xbf][\\x80-\\xbf][\\x80-\\xbf]"
+    b" |  [\\xf1-\\xf3][\\x80-\\xbf][\\x80-\\xbf][\\x80-\\xbf]"
+    b" |   \\xf4       [\\x80-\\x8f][\\x80-\\xbf][\\x80-\\xbf]"
+    b" )+)",
+    re.VERBOSE,
+)
 
 _EMPTY = object()
 
@@ -202,3 +241,31 @@ def nest_encode(obj, encoding):
         return {k.encode("ascii"): nest_encode(v, encoding)
                 for k, v in obj.items()}
     return [nest_encode(value, encoding) for value in obj]
+
+
+def utf8_fix_nest_decode(obj, encoding):
+    """Decode records in dict or tidy list format
+    using an hybrid strategy where a UTF-8 decoding
+    is tried before the given encoding.
+    """
+    if hasattr(obj, "decode"):  # isinstance(obj, bytes)
+        try:
+            return obj.decode("utf-8")
+        except UnicodeDecodeError:
+            return hybrid_utf8_decode(obj, encoding)
+    if hasattr(obj, "items"):  # isinstance(obj, dict)
+        return {k.decode("ascii"): utf8_fix_nest_decode(v, encoding)
+                for k, v in obj.items()}
+    return [utf8_fix_nest_decode(value, encoding) for value in obj]
+
+
+def hybrid_utf8_decode(value, encoding):
+    """Decode a bytestring value that might be partially in UTF-8,
+    partially in the other given encoding,
+    trying to do that with UTF-8 before."""
+    return "".join(
+        seq.decode(enc)
+        for seq, enc in zip(UTF8_MB_REGEX.split(value),
+                            cycle([encoding, "utf-8"]))
+        if seq
+    )

@@ -10,7 +10,7 @@ import ujson
 
 from . import bruma, iso, mst
 from .fieldutils import nest_decode, nest_encode, SubfieldParser, \
-                        tl2record, record2tl
+                        tl2record, record2tl, utf8_fix_nest_decode
 
 
 DEFAULT_JSONL_ENCODING = "utf-8"
@@ -392,6 +392,15 @@ mst_options = [
 ]
 
 
+utf8_fix_option = click.option(
+    "utf8_fix", "--utf8",
+    is_flag=True,
+    default=False,
+    help="Decode the input data with UTF-8 if possible, "
+         "using the given input encoding as a fallback.",
+)
+
+
 @click.group()
 def main():
     """ISIS data converter using the ioisis Python library."""
@@ -431,17 +440,19 @@ def bruma_mst2jsonl(mst_input, jsonl_output, mst_encoding, mode, **kwargs):
 @apply_decorators(*mst_metadata_filtering_options)
 @jsonl_mode_option
 @apply_decorators(*subfield_options)
+@utf8_fix_option
 @file_arg_enc_option("mst", "rb", mst.DEFAULT_MST_ENCODING)
 @file_arg_enc_option("jsonl", "w", DEFAULT_JSONL_ENCODING)
-def mst2jsonl(mst_input, jsonl_output, mst_encoding, mode, **kwargs):
+def mst2jsonl(mst_input, jsonl_output, mst_encoding, mode, utf8_fix, **kwargs):
     """ISIS/FFI Master File Format to JSON Lines."""
     ensure_ascii = jsonl_output.encoding.lower() == "ascii"
     mst_sc = kw_call(mst.StructCreator, **kwargs)
     sfp = kw_call(SubfieldParser, **kwargs)
+    decode = utf8_fix_nest_decode if utf8_fix else nest_decode
     for tl in kw_call(mst_sc.iter_raw_tl, mst_input, **kwargs):
         record = tl2record(tl, sfp, mode)
         ujson.dump(
-            nest_decode(record, encoding=mst_encoding),
+            decode(record, encoding=mst_encoding),
             jsonl_output,
             ensure_ascii=ensure_ascii,
             escape_forward_slashes=False,
@@ -474,17 +485,19 @@ def jsonl2mst(jsonl_input, mst_output, mst_encoding, mode, **kwargs):
 @apply_decorators(*iso_options)
 @jsonl_mode_option
 @apply_decorators(*subfield_options)
+@utf8_fix_option
 @file_arg_enc_option("iso", "rb", iso.DEFAULT_ISO_ENCODING)
 @file_arg_enc_option("jsonl", "w", DEFAULT_JSONL_ENCODING)
-def iso2jsonl(iso_input, jsonl_output, iso_encoding, mode, **kwargs):
+def iso2jsonl(iso_input, jsonl_output, iso_encoding, mode, utf8_fix, **kwargs):
     """ISO2709 to JSON Lines."""
     ensure_ascii = jsonl_output.encoding.lower() == "ascii"
     record_struct = kw_call(iso.create_record_struct, **kwargs)
     sfp = kw_call(SubfieldParser, **kwargs)
+    decode = utf8_fix_nest_decode if utf8_fix else nest_decode
     for tl in iso.iter_raw_tl(iso_input, record_struct=record_struct):
         record = tl2record(tl, sfp, mode)
         ujson.dump(
-            nest_decode(record, encoding=iso_encoding),
+            decode(record, encoding=iso_encoding),
             jsonl_output,
             ensure_ascii=ensure_ascii,
             escape_forward_slashes=False,
