@@ -477,9 +477,24 @@ class StructCreator:
         if control_record.next_offset != next_offset:
             raise CheckError("Invalid next_offset")
 
-    def iter_raw_tl(self, mst_stream):
+    def iter_raw_tl(self, mst_stream, *,
+                    only_active=False, prepend_active=False,
+                    prepend_mfn=False, prepend_status=False,
+    ):
         for con in self.iter_con(mst_stream):
-            yield list(con_pairs(con))
+            if con.old_block != 0 or con.old_offset != 0:
+                raise NotImplementedError("Pending master file reorganization")
+            if only_active and con.status != 0:
+                continue
+            result = []
+            if prepend_active:
+                result.append((b"active", b"%d" % (1 - con.status)))
+            if prepend_mfn:
+                result.append((b"mfn", b"%d" % con.mfn))
+            if prepend_status:
+                result.append((b"status", [b"ACTIVE", b"LOGDEL"][con.status]))
+            result.extend(con_pairs(con))
+            yield result
 
     def build_stream(self, records, mst_stream, control_record=None):
         """Build the MST binary data on the given seekable stream.

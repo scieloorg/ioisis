@@ -428,6 +428,7 @@ def bruma_mst2jsonl(mst_input, jsonl_output, mst_encoding, mode, **kwargs):
 
 @main.command()
 @apply_decorators(*mst_options)
+@apply_decorators(*mst_metadata_filtering_options)
 @jsonl_mode_option
 @apply_decorators(*subfield_options)
 @file_arg_enc_option("mst", "rb", mst.DEFAULT_MST_ENCODING)
@@ -437,7 +438,7 @@ def mst2jsonl(mst_input, jsonl_output, mst_encoding, mode, **kwargs):
     ensure_ascii = jsonl_output.encoding.lower() == "ascii"
     mst_sc = kw_call(mst.StructCreator, **kwargs)
     sfp = kw_call(SubfieldParser, **kwargs)
-    for tl in mst_sc.iter_raw_tl(mst_input):
+    for tl in kw_call(mst_sc.iter_raw_tl, mst_input, **kwargs):
         record = tl2record(tl, sfp, mode)
         ujson.dump(
             nest_decode(record, encoding=mst_encoding),
