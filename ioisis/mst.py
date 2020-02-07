@@ -35,6 +35,12 @@ DEFAULT_RECORD_FILLER = b" "
 DEFAULT_CONTROL_LEN = 64
 
 
+def con_pairs(con):
+    """Generator of raw ``(tag, field)`` pairs of ``bytes`` objects."""
+    for dir_entry, field_value in zip(con.dir, con.fields):
+        yield b"%d" % dir_entry.tag, field_value
+
+
 def pad_size(modulus, size):
     """Calculate the padding size for the given size in a modulus grid."""
     return (modulus * (size // modulus + 1) - size) % modulus
@@ -457,6 +463,10 @@ class StructCreator:
             raise CheckError("Invalid next_block")
         if control_record.next_offset != next_offset:
             raise CheckError("Invalid next_offset")
+
+    def iter_raw_tl(self, mst_stream):
+        for con in self.iter_con(mst_stream):
+            yield list(con_pairs(con))
 
     def build_stream(self, records, mst_stream, control_record=None):
         """Build the MST binary data on the given seekable stream.

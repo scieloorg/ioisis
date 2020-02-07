@@ -213,6 +213,171 @@ mst_metadata_filtering_options = [
 ]
 
 
+mst_options = [
+    click.option(
+        "endianness", "--end",
+        default=mst.DEFAULT_ENDIANNESS,
+        show_default=True,
+        type=click.Choice(["little", "big"]),
+        help="Byte order endianness for 16/32 bits integer numbers. "
+             'Little endian is known as "swapped" in CISIS/Bruma.',
+    ),
+    click.option(
+        "endianness", "--le",
+        flag_value="little",
+        is_eager=True,
+        help="Same to --end=little.",
+    ),
+    click.option(
+        "endianness", "--be",
+        flag_value="big",
+        is_eager=True,
+        help="Same to --end=big.",
+    ),
+    click.option(
+        "--format",
+        default=mst.DEFAULT_FORMAT,
+        show_default=True,
+        type=click.Choice(["isis", "ffi"]),
+        help="Leader and directory format mode in master files. "
+             "In the ISIS format mode, "
+             "the addressing and length fields "
+             "(MFRL, BASE, POS and LEN) have 2 bytes, "
+             "whereas in the FFI format mode they have 4 bytes.",
+    ),
+    click.option(
+        "format", "--isis",
+        flag_value="isis",
+        is_eager=True,
+        help="Same to --format=isis.",
+    ),
+    click.option(
+        "format", "--ffi",
+        flag_value="ffi",
+        is_eager=True,
+        help="Same to --format=ffi.",
+    ),
+    click.option(
+        "--lockable/--no-locks",
+        default=mst.DEFAULT_LOCKABLE,
+        show_default=True,
+        help="Multi-user locking, "
+             "where the MFRL sign is a RLOCK (record lock flag), "
+             "MFCXX2 is the DELOCK (Data entry lock / RLOCK counter) "
+             "and MFCXX3 is the EWLOCK (Exclusive write lock). "
+             "MFRL will be interpreted as unsigned if --no-locks, "
+             "effectively increasing the maximum record size "
+             "to twice plus one.",
+    ),
+    click.option(
+        "--default-shift",
+        default=mst.DEFAULT_SHIFT,
+        show_default=True,
+        help="Default MSTXL value, the number of XRF bit shift steps. "
+             "It affects the minimum possible modulus "
+             "for record alignment in the MST file, "
+             "and it's part of the control record. "
+             "To get the standard ISIS behavior, this should be 0, "
+             "and to get the CISIS FFI behavior, this should be 3, "
+             "although 6 is the most common choice for large files "
+             "in both format modes.",
+    ),
+    click.option(
+        "--shift4is3/--shift4isnt3",
+        default=mst.DEFAULT_SHIFT4IS3,
+        show_default=True,
+        help="Legacy shifting interpretation "
+             "where there's no 4 bits shifting, "
+             "and MSTXL=4 should be replaced by MSTXL=3.",
+    ),
+    click.option(
+        "--min-modulus",
+        default=mst.DEFAULT_MIN_MODULUS,
+        show_default=True,
+        help="Smallest modulus value for record alignment. "
+             "Due to XRF shifting, the actual modulus is 2**MSTXL "
+             "(2 raised to the power of MSTXL), "
+             "unless this value is higher than that. "
+             "The ISIS standard define this as 2. "
+             "This option makes it possible "
+             "to disable the 2 bytes (WORD) alignment of records "
+             "by setting it as 1.",
+    ),
+    click.option(
+        "--packed/--unpacked",
+        default=mst.DEFAULT_PACKED,
+        show_default=True,
+        help="Control the leader and FFI directory alignment. "
+             "If --packed, "
+             "there should be no padding/filler/slack bytes in these. "
+             "If --unpacked, there should be a 4-bytes alignment, "
+             "adding 2 filler bytes in the leader "
+             "(after the MFRL in ISIS, after the BASE in FFI) "
+             "and 2 filler bytes after the TAG "
+             "in FFI directory entries. "
+             "These are also known as align0/align2 in Bruma "
+             "(i.e., with the number of padding bytes), "
+             "and as PC/LINUX (or Windows/Linux) in CISIS "
+             "(because it used to be compiled in Windows "
+             " with -fpack-struct=1, and without it in Linux), "
+             "though this option has nothing to do operating system.",
+    ),
+    click.option(
+        "--filler",
+        metavar="HEX_BYTE",
+        default="%02X" % ord(mst.DEFAULT_FILLER),
+        show_default=True,
+        callback=lambda ctx, param, value:
+            bytes([int(value, 16)]) if value else None,
+        help="Character code in hexadecimal for unset filler options "
+             "that doesn't have a specific default.",
+    ),
+    click.option(
+        "--control-filler",
+        metavar="HEX_BYTE",
+        callback=lambda ctx, param, value:
+            bytes([int(value, 16)]) if value else None,
+        help="Filler character code "
+             "for the trailing bytes of the control record. "
+             "The CISIS source code tells "
+             'it should be "FF" for Unisys, and "00" otherwise.',
+    ),
+    click.option(
+        "--slack-filler",
+        metavar="HEX_BYTE",
+        callback=lambda ctx, param, value:
+            bytes([int(value, 16)]) if value else None,
+        help="Filler character code for alignment "
+             "in the leader and the directory of all records. "
+             "Has no effect when --packed.",
+    ),
+    click.option(
+        "--block-filler",
+        metavar="HEX_BYTE",
+        callback=lambda ctx, param, value:
+            bytes([int(value, 16)]) if value else None,
+        help="Filler character code "
+             "for the trailing recordless bytes of a block.",
+    ),
+    click.option(
+        "--record-filler",
+        metavar="HEX_BYTE",
+        default="%02X" % ord(mst.DEFAULT_RECORD_FILLER),
+        show_default=True,
+        callback=lambda ctx, param, value:
+            bytes([int(value, 16)]) if value else None,
+        help="Filler character code for the trailing record data.",
+    ),
+    click.option(
+        "--control-len",
+        default=mst.DEFAULT_CONTROL_LEN,
+        show_default=True,
+        help="Control record length, at least 32. "
+             "It must be multiple of the modulus.",
+    ),
+]
+
+
 @click.group()
 def main():
     """ISIS data converter using the ioisis Python library."""
@@ -240,6 +405,29 @@ def bruma_mst2jsonl(mst_input, jsonl_output, mst_encoding, mode, **kwargs):
         record = tl2record(tl_decoded, sfp, mode)
         ujson.dump(
             record, jsonl_output,
+            ensure_ascii=ensure_ascii,
+            escape_forward_slashes=False,
+        )
+        jsonl_output.write("\n")
+        jsonl_output.flush()
+
+
+@main.command()
+@apply_decorators(*mst_options)
+@jsonl_mode_option
+@apply_decorators(*subfield_options)
+@file_arg_enc_option("mst", "rb", mst.DEFAULT_MST_ENCODING)
+@file_arg_enc_option("jsonl", "w", DEFAULT_JSONL_ENCODING)
+def mst2jsonl(mst_input, jsonl_output, mst_encoding, mode, **kwargs):
+    """ISIS/FFI Master File Format to JSON Lines."""
+    ensure_ascii = jsonl_output.encoding.lower() == "ascii"
+    mst_sc = kw_call(mst.StructCreator, **kwargs)
+    sfp = kw_call(SubfieldParser, **kwargs)
+    for tl in mst_sc.iter_raw_tl(mst_input):
+        record = tl2record(tl, sfp, mode)
+        ujson.dump(
+            nest_decode(record, encoding=mst_encoding),
+            jsonl_output,
             ensure_ascii=ensure_ascii,
             escape_forward_slashes=False,
         )
