@@ -391,6 +391,16 @@ mst_options = [
     ),
 ]
 
+mst_ibp_option = click.option(
+    "--ibp",
+    type=click.Choice(["check", "ignore", "store"]),
+    default=mst.DEFAULT_IBP,
+    help="Invalid block padding content/size, "
+         "which might appear as a residual of some previous content "
+         "when the MST file gets updated in place. "
+         'If "store", the contents are stored in the previous record.',
+)
+
 
 utf8_fix_option = click.option(
     "utf8_fix", "--utf8",
@@ -437,6 +447,7 @@ def bruma_mst2jsonl(mst_input, jsonl_output, mst_encoding, mode, **kwargs):
 
 @main.command()
 @apply_decorators(*mst_options)
+@mst_ibp_option
 @apply_decorators(*mst_metadata_filtering_options)
 @jsonl_mode_option
 @apply_decorators(*subfield_options)

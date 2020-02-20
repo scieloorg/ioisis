@@ -9,6 +9,7 @@ The unpacked, FFI, shifted or otherwise customized file formats
 were discovered based by the analysis of actual MST files
 as well as the source code of CISIS and Bruma.
 """
+from binascii import b2a_hex
 from itertools import accumulate
 
 from construct import Array, Byte, Bytes, \
@@ -16,7 +17,7 @@ from construct import Array, Byte, Bytes, \
                       Default, ExprAdapter, FocusedSeq, \
                       Int16sb, Int16sl, Int16ub, Int16ul, \
                       Int32sb, Int32sl, Int32ub, Int32ul, \
-                      Padded, Padding, Rebuild, Select, Struct, \
+                      Padded, Padding, Rebuild, Select, SelectError, Struct, \
                       Tell, Terminated, Union
 
 from .ccons import Unnest
@@ -33,6 +34,7 @@ DEFAULT_PACKED = False
 DEFAULT_FILLER = b"\x00"
 DEFAULT_RECORD_FILLER = b" "
 DEFAULT_CONTROL_LEN = 64
+DEFAULT_IBP = "check"
 
 
 def con_pairs(con):
@@ -175,6 +177,13 @@ class StructCreator:
     control_len : int
         Control record length,
         it should be at least ``max(32, 2 ** shift)``.
+    ibp : str
+        Invalid block padding content/size acceptance mode.
+        There are 3 modes:
+        "check", to raise an exception when such invalid data appears;
+        "ignore", to skip these bytes;
+        and "store", to add an "ibp" field
+        with the found trailing invalid data in hex.
     """
     def __init__(
         self,
@@ -191,6 +200,7 @@ class StructCreator:
         block_filler=None,
         record_filler=DEFAULT_RECORD_FILLER,
         control_len=DEFAULT_CONTROL_LEN,
+        ibp=DEFAULT_IBP,
     ):
         # Get the actual value for every filler
         self.control_filler = \
@@ -207,6 +217,8 @@ class StructCreator:
             raise ValueError("Invalid endianness")
         if format not in ["isis", "ffi"]:
             raise ValueError("Invalid format mode")
+        if ibp not in ["check", "ignore", "store"]:
+            raise ValueError("Invalid ibp mode")
         min_modulus_rounded_to_powerof2 = 1 << (min_modulus.bit_length() - 1)
         if min_modulus <= 0 or min_modulus != min_modulus_rounded_to_powerof2:
             raise ValueError("Value of min_modulus must be "
@@ -228,6 +240,7 @@ class StructCreator:
         self.min_modulus = min_modulus
         self.packed = packed
         self.control_len = control_len
+        self.ibp = ibp
 
     def create_control_record_struct(self):
         little_endian = self.endianness == "little"
@@ -461,16 +474,42 @@ class StructCreator:
         leader_len = 18 + 4 * (self.format == "ffi") + 2 * (not self.packed)
         rec_or_end_struct = Select(record_struct, ending_struct)
 
-        if yield_control_record:
-            yield control_record
-
         last_tell = 0
-        while True:
-            record = rec_or_end_struct.parse_stream(mst_stream)
-            if record is None:  # No more records
-                break
-            last_tell = mst_stream.tell()
-            yield record
+        def record_ibp_gen():
+            nonlocal last_tell
+            ibps = []
+            while True:
+                try:
+                    record = rec_or_end_struct.parse_stream(mst_stream)
+                except SelectError:
+                    if self.ibp == "check":
+                        raise
+                    elif self.ibp == "store":
+                        ibps.append(mst_stream.read(control_record.modulus))
+                    continue
+                if ibps:
+                    yield {"ibp": b2a_hex(b"".join(ibps))}
+                    ibps.clear()
+                if record is None:  # No more records
+                    break
+                last_tell = mst_stream.tell()
+                yield record
+
+        if yield_control_record:
+            prev = control_record
+        else:
+            prev = None
+        for record in record_ibp_gen():
+            if record and "ibp" in record:
+                prev.update(record)
+                yield prev
+                prev = None
+            else:
+                if prev:
+                    yield prev
+                prev = record
+        if prev:
+            yield prev
 
         next_addr = last_tell + never_split_pad_size(last_tell, leader_len)
         next_block = 1 + (next_addr >> 9)
@@ -485,7 +524,7 @@ class StructCreator:
                     prepend_mfn=False, prepend_status=False,
     ):
         for con in self.iter_con(mst_stream):
-            if con.old_block != 0 or con.old_offset != 0:
+            if con.get("old_block", 0) != 0 or con.get("old_offset", 0) != 0:
                 raise NotImplementedError("Pending master file reorganization")
             if only_active and con.status != 0:
                 continue
@@ -497,6 +536,8 @@ class StructCreator:
             if prepend_status:
                 result.append((b"status", [b"ACTIVE", b"LOGDEL"][con.status]))
             result.extend(con_pairs(con))
+            if "ibp" in con and self.ibp == "store":
+                result.append((b"ibp", con["ibp"]))
             yield result
 
     def build_stream(self, records, mst_stream, control_record=None):
