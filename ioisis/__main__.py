@@ -292,10 +292,10 @@ mst_options = [
              "to twice plus one.",
     ),
     option(
-        "--default-shift",
+        "default_shift", "--shift",
         default=mst.DEFAULT_SHIFT,
         show_default=True,
-        help="Default MSTXL value, the number of XRF bit shift steps. "
+        help="MSTXL value, the number of XRF bit shift steps. "
              "It affects the minimum possible modulus "
              "for record alignment in the MST file, "
              "and it's part of the control record. "
@@ -454,7 +454,7 @@ def bruma_mst2jsonl(mst_input, jsonl_output, mst_encoding, mode, **kwargs):
 
 
 @main.command()
-@apply_decorators(*mst_options)
+@apply_decorators(*[op for op in mst_options if op.args[0] != "default_shift"])
 @mst_ibp_option
 @apply_decorators(*mst_metadata_filtering_options)
 @jsonl_mode_option
