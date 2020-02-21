@@ -23,6 +23,14 @@ def apply_decorators(*decorators):
     return lambda func: reduce(lambda f, d: d(f), decorators[::-1], func)
 
 
+def option(*args, **kwargs):
+    """Same to click.option, but saves the args/kwargs for filtering."""
+    result = click.option(*args, **kwargs)
+    result.args = args
+    result.kwargs = kwargs
+    return result
+
+
 def encoding_option(file_ext, default, **kwargs):
     ctx_attr = file_ext + "_encoding"
     return click.option(
@@ -78,7 +86,7 @@ def file_arg_enc_option(file_ext, mode, default_encoding):
 
 
 def iso_bytes_option_with_default(*args, **kwargs):
-    return click.option(
+    return option(
         *args,
         metavar="BYTES",
         show_default=True,
@@ -105,7 +113,7 @@ iso_options = [
         default=iso.DEFAULT_RECORD_TERMINATOR,
         help="ISO Record terminator",
     ),
-    click.option(
+    option(
         "line_len", "--line",
         default=iso.DEFAULT_LINE_LEN,
         show_default=True,
@@ -131,7 +139,7 @@ jsonl_mode_option = click.option(
 
 
 subfield_options = [
-    click.option(
+    option(
         "--prefix",
         metavar="BYTES",
         default=b"^",
@@ -140,20 +148,20 @@ subfield_options = [
             escape_decode(value.encode("ascii"))[0],
         help="Subfield prefix mark."
     ),
-    click.option(
+    option(
         "--length",
         default=1,
         show_default=True,
         help="Subfield key length in bytes."
     ),
-    click.option(
+    option(
         "--lower/--no-lower",
         default=True,
         show_default=True,
         help="Put subfield keys in lower case, "
              "making them case insensitive."
     ),
-    click.option(
+    option(
         "--first",
         metavar="BYTES",
         default=b"_",
@@ -162,13 +170,13 @@ subfield_options = [
             escape_decode(value.encode("ascii"))[0],
         help="Key to be used for the first keyless subfield."
     ),
-    click.option(
+    option(
         "--empty/--no-empty",
         default=False,
         show_default=True,
         help="Keep subfield pairs with empty values."
     ),
-    click.option(
+    option(
         "--number/--no-number",
         default=True,
         show_default=True,
@@ -176,7 +184,7 @@ subfield_options = [
              "that have already appeared before for the same field. "
              "The suffix numbers start in 1."
     ),
-    click.option(
+    option(
         "--zero/--no-zero",
         default=False,
         show_default=True,
@@ -198,26 +206,26 @@ subfield_unparse_check_option = click.option(
 
 
 mst_metadata_filtering_options = [
-    click.option(
+    option(
         "only_active", "--only-active/--all",
         default=False,
         show_default=True,
         help="Select only records whose status is ACTIVE.",
     ),
-    click.option(
+    option(
         "--prepend-active/--no-active",
         default=False,
         show_default=True,
         help='Prepend a synthesized "active" field from the status, '
              'whose value might be "0" (false) or "1" (true).',
     ),
-    click.option(
+    option(
         "--prepend-mfn/--no-mfn",
         default=False,
         show_default=True,
         help='Prepend the "mfn" field.',
     ),
-    click.option(
+    option(
         "--prepend-status/--no-status",
         default=False,
         show_default=True,
@@ -228,7 +236,7 @@ mst_metadata_filtering_options = [
 
 
 mst_options = [
-    click.option(
+    option(
         "endianness", "--end",
         default=mst.DEFAULT_ENDIANNESS,
         show_default=True,
@@ -236,19 +244,19 @@ mst_options = [
         help="Byte order endianness for 16/32 bits integer numbers. "
              'Little endian is known as "swapped" in CISIS/Bruma.',
     ),
-    click.option(
+    option(
         "endianness", "--le",
         flag_value="little",
         is_eager=True,
         help="Same to --end=little.",
     ),
-    click.option(
+    option(
         "endianness", "--be",
         flag_value="big",
         is_eager=True,
         help="Same to --end=big.",
     ),
-    click.option(
+    option(
         "--format",
         default=mst.DEFAULT_FORMAT,
         show_default=True,
@@ -259,19 +267,19 @@ mst_options = [
              "(MFRL, BASE, POS and LEN) have 2 bytes, "
              "whereas in the FFI format mode they have 4 bytes.",
     ),
-    click.option(
+    option(
         "format", "--isis",
         flag_value="isis",
         is_eager=True,
         help="Same to --format=isis.",
     ),
-    click.option(
+    option(
         "format", "--ffi",
         flag_value="ffi",
         is_eager=True,
         help="Same to --format=ffi.",
     ),
-    click.option(
+    option(
         "--lockable/--no-locks",
         default=mst.DEFAULT_LOCKABLE,
         show_default=True,
@@ -283,7 +291,7 @@ mst_options = [
              "effectively increasing the maximum record size "
              "to twice plus one.",
     ),
-    click.option(
+    option(
         "--default-shift",
         default=mst.DEFAULT_SHIFT,
         show_default=True,
@@ -296,7 +304,7 @@ mst_options = [
              "although 6 is the most common choice for large files "
              "in both format modes.",
     ),
-    click.option(
+    option(
         "--shift4is3/--shift4isnt3",
         default=mst.DEFAULT_SHIFT4IS3,
         show_default=True,
@@ -304,7 +312,7 @@ mst_options = [
              "where there's no 4 bits shifting, "
              "and MSTXL=4 should be replaced by MSTXL=3.",
     ),
-    click.option(
+    option(
         "--min-modulus",
         default=mst.DEFAULT_MIN_MODULUS,
         show_default=True,
@@ -317,7 +325,7 @@ mst_options = [
              "to disable the 2 bytes (WORD) alignment of records "
              "by setting it as 1.",
     ),
-    click.option(
+    option(
         "--packed/--unpacked",
         default=mst.DEFAULT_PACKED,
         show_default=True,
@@ -336,7 +344,7 @@ mst_options = [
              " with -fpack-struct=1, and without it in Linux), "
              "though this option has nothing to do operating system.",
     ),
-    click.option(
+    option(
         "--filler",
         metavar="HEX_BYTE",
         default="%02X" % ord(mst.DEFAULT_FILLER),
@@ -346,7 +354,7 @@ mst_options = [
         help="Character code in hexadecimal for unset filler options "
              "that doesn't have a specific default.",
     ),
-    click.option(
+    option(
         "--control-filler",
         metavar="HEX_BYTE",
         callback=lambda ctx, param, value:
@@ -356,7 +364,7 @@ mst_options = [
              "The CISIS source code tells "
              'it should be "FF" for Unisys, and "00" otherwise.',
     ),
-    click.option(
+    option(
         "--slack-filler",
         metavar="HEX_BYTE",
         callback=lambda ctx, param, value:
@@ -365,7 +373,7 @@ mst_options = [
              "in the leader and the directory of all records. "
              "Has no effect when --packed.",
     ),
-    click.option(
+    option(
         "--block-filler",
         metavar="HEX_BYTE",
         callback=lambda ctx, param, value:
@@ -373,7 +381,7 @@ mst_options = [
         help="Filler character code "
              "for the trailing recordless bytes of a block.",
     ),
-    click.option(
+    option(
         "--record-filler",
         metavar="HEX_BYTE",
         default="%02X" % ord(mst.DEFAULT_RECORD_FILLER),
@@ -382,7 +390,7 @@ mst_options = [
             bytes([int(value, 16)]) if value else None,
         help="Filler character code for the trailing record data.",
     ),
-    click.option(
+    option(
         "--control-len",
         default=mst.DEFAULT_CONTROL_LEN,
         show_default=True,
