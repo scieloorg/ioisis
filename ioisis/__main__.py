@@ -205,19 +205,12 @@ subfield_unparse_check_option = click.option(
 )
 
 
-mst_metadata_filtering_options = [
+metadata_filtering_options = [
     option(
         "only_active", "--only-active/--all",
-        default=False,
+        default=True,
         show_default=True,
-        help="Select only records whose status is ACTIVE.",
-    ),
-    option(
-        "--prepend-active/--no-active",
-        default=False,
-        show_default=True,
-        help='Prepend a synthesized "active" field from the status, '
-             'whose value might be "0" (false) or "1" (true).',
+        help='Select only records whose status is "0" (active).',
     ),
     option(
         "--prepend-mfn/--no-mfn",
@@ -230,7 +223,8 @@ mst_metadata_filtering_options = [
         default=False,
         show_default=True,
         help='Prepend the "status" field from the record metadata, '
-             'whose value might be "ACTIVE", "LOGDEL", or "PHYDEL".',
+             "whose value is either "
+             '"0" (active) or "1" (logically deleted).',
     ),
 ]
 
@@ -430,7 +424,7 @@ def main():
 
 
 @main.command("bruma-mst2jsonl")
-@apply_decorators(*mst_metadata_filtering_options)
+@apply_decorators(*metadata_filtering_options)
 @jsonl_mode_option
 @apply_decorators(*subfield_options)
 @file_arg_enc_option("mst", INPUT_PATH, mst.DEFAULT_MST_ENCODING)
@@ -456,7 +450,7 @@ def bruma_mst2jsonl(mst_input, jsonl_output, mst_encoding, mode, **kwargs):
 @main.command()
 @apply_decorators(*[op for op in mst_options if op.args[0] != "default_shift"])
 @mst_ibp_option
-@apply_decorators(*mst_metadata_filtering_options)
+@apply_decorators(*metadata_filtering_options)
 @jsonl_mode_option
 @apply_decorators(*subfield_options)
 @utf8_fix_option
@@ -502,6 +496,7 @@ def jsonl2mst(jsonl_input, mst_output, mst_encoding, mode, **kwargs):
 
 @main.command()
 @apply_decorators(*iso_options)
+@apply_decorators(*metadata_filtering_options)
 @jsonl_mode_option
 @apply_decorators(*subfield_options)
 @utf8_fix_option
@@ -510,10 +505,10 @@ def jsonl2mst(jsonl_input, mst_output, mst_encoding, mode, **kwargs):
 def iso2jsonl(iso_input, jsonl_output, iso_encoding, mode, utf8_fix, **kwargs):
     """ISO2709 to JSON Lines."""
     ensure_ascii = jsonl_output.encoding.lower() == "ascii"
-    record_struct = kw_call(iso.create_record_struct, **kwargs)
+    kwargs["record_struct"] = kw_call(iso.create_record_struct, **kwargs)
     sfp = kw_call(SubfieldParser, **kwargs)
     decode = utf8_fix_nest_decode if utf8_fix else nest_decode
-    for tl in iso.iter_raw_tl(iso_input, record_struct=record_struct):
+    for tl in kw_call(iso.iter_raw_tl, iso_input, **kwargs):
         record = tl2record(tl, sfp, mode)
         ujson.dump(
             decode(record, encoding=iso_encoding),

@@ -165,9 +165,16 @@ def con_pairs(con):
         yield dir_entry.tag.lstrip(b"0") or b"0", field_value
 
 
-def iter_raw_tl(iso_file, **kwargs):
-    for con in iter_con(iso_file, **kwargs):
-        yield list(con_pairs(con))
+def iter_raw_tl(iso_file, *, only_active=True, prepend_status=False,
+                record_struct=DEFAULT_RECORD_STRUCT):
+    for con in iter_con(iso_file, record_struct=record_struct):
+        if only_active and con.status != b"0":
+            continue
+        result = []
+        if prepend_status:
+            result.append((b"status", b"%d" % con.status))
+        result.extend(con_pairs(con))
+        yield result
 
 
 def iter_tl(iso_file, encoding=DEFAULT_ISO_ENCODING, **kwargs):
