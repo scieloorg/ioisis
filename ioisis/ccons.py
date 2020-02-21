@@ -1,13 +1,64 @@
 """Custom construct subclasses."""
 from contextlib import closing
 
-from construct import Adapter, Subconstruct
+from construct import Adapter, Array, Check, RepeatUntil, Struct, Subconstruct
 
 from .streamutils import LineSplittedBytesStreamWrapper
 
 
 DEFAULT_LINE_LEN = 80
 DEFAULT_NEWLINE = b"\n"
+
+
+class DictSegSeq(Adapter):
+
+    def __init__(self, idx_field, subcon, block_size, empty_item,
+                 check_nonempty):
+        super().__init__(IndexedRange(idx_field, Array(block_size, subcon)))
+        self.block_size = block_size
+        self.empty_item = empty_item
+        self.check_nonempty = check_nonempty
+
+    def _decode(self, obj, context, path):
+        return {
+            bidx * self.block_size + idx: item
+            for bidx, blk in enumerate(obj)
+            for idx, item in enumerate(blk, 1)
+            if self.check_nonempty(item)
+        }
+
+    def _encode(self, obj, context, path):
+        return [
+            [obj.get(idx, self.empty_item)
+             for idx in range(start, start + self.block_size)]
+            for start in range(1, max(obj) + 1, self.block_size)
+        ]
+
+
+class IndexedRange(Adapter):
+    """Like GreedyRange, but prefixed with an index starting from 1,
+    and whose sign is a flag that tells, when negative,
+    that we're dealing with the last item.
+    """
+    def __init__(self, idx_field, subcon):
+        super().__init__(RepeatUntil(
+            lambda obj, values, ctx: obj["idx"] < 0,
+            Struct(
+                "idx" / idx_field,
+                Check(lambda this: abs(this.idx) == this._index + 1),
+                "data" / subcon,
+            ),
+        ))
+
+    def _decode(self, obj, context, path):
+        return [el.data for el in obj]
+
+    def _encode(self, obj, context, path):
+        last_idx = len(obj)
+        return [{
+            "idx": -idx if idx == last_idx else idx,
+            "data": el,
+        } for idx, el in enumerate(obj, 1)]
 
 
 class IntInASCII(Adapter):
