@@ -12,15 +12,16 @@ as well as the source code of CISIS and Bruma.
 from binascii import b2a_hex
 from itertools import accumulate
 
-from construct import Array, Byte, Bytes, \
+from construct import Array, BitsInteger, BitStruct, \
+                      Byte, Bytes, ByteSwapped, \
                       Check, CheckError, Computed, Const, \
-                      Default, ExprAdapter, FocusedSeq, \
+                      Default, ExprAdapter, Flag, FocusedSeq, \
                       Int16sb, Int16sl, Int16ub, Int16ul, \
                       Int32sb, Int32sl, Int32ub, Int32ul, \
                       Padded, Padding, Rebuild, Select, SelectError, Struct, \
                       Tell, Terminated, Union
 
-from .ccons import Unnest
+from .ccons import DictSegSeq, Unnest
 
 
 DEFAULT_MST_ENCODING = "cp1252"
@@ -452,6 +453,35 @@ class StructCreator:
                 self.block_filler,
             ),
             "empty" / Terminated,
+        )
+
+    def create_xrf_struct(self, control_record):
+        shift = control_record.shift
+        Int32s, BitStructWrapper = {
+            "big": (Int32sb, lambda x: x),
+            "little": (Int32sl, ByteSwapped),
+        }[self.endianness]
+        return FocusedSeq(
+            "data",
+            "data" / DictSegSeq(
+                idx_field=Int32s,
+                subcon=BitStructWrapper(BitStruct(
+                    "block" / Default(BitsInteger(21 + shift, signed=True), 0),
+                    "is_new" / Default(Flag, False),
+                    "is_updated" / Default(Flag, False),
+                    "offset" / Default(ExprAdapter(
+                        BitsInteger(9 - shift),
+                        lambda obj, context: obj << shift,
+                        lambda obj, context: obj >> shift,
+                    ), 0),
+                )),
+                block_size=127,  # Not counting the index field
+                empty_item={},
+                check_nonempty=lambda item: any([
+                    item.block, item.offset, item.is_new, item.is_updated,
+                ]),
+            ),
+            Terminated,
         )
 
     def iter_con(self, mst_stream, yield_control_record=False):
