@@ -1,8 +1,18 @@
 # IOISIS - I/O tools for converting ISIS data in Python
 
-This is a Python library with command line interface
+This is a Python library with a command line interface
 intended to access data from ISIS database files
-and convert file formats.
+and convert among distinct file formats.
+
+The `bruma-mst2jsonl` command and the `bruma` module
+uses a pre-compiled version
+of [Bruma](https://github.com/scieloorg/Bruma)
+through [JPype](https://github.com/jpype-project/jpype),
+which requires the JVM.
+The `iso` and `mst` modules, as well as
+the `mst2jsonl`, `jsonl2mst`, `iso2jsonl` and `jsonl2iso` commands
+don't require Bruma.
+Bruma only gets downloaded in its first use.
 
 
 ## Command Line Interface (CLI)
@@ -11,7 +21,7 @@ To use the CLI command, use `ioisis` or `python -m ioisis`.
 Examples:
 
 ```bash
-# Read file.mst (and file.xrf) to a JSONL in the standard output stream
+# Convert file.mst to a JSONL in the standard output stream
 ioisis mst2jsonl file.mst
 
 # Convert file.iso to an ASCII file.jsonl
@@ -21,16 +31,21 @@ ioisis iso2jsonl --jenc ascii file.iso file.jsonl
 # {"tag": ["field", ...], ...}
 ioisis jsonl2iso file.jsonl file.iso
 
-# Indirectly, convert active records of file.mst + file.xrf
+# Convert active and logically deleted records from file.mst
 # to file.iso, selecting records and filtering out fields with jq
-ioisis mst2jsonl --only-active file.mst \
+ioisis mst2jsonl --all file.mst \
 | jq -c 'select(.["35"] == ["PRINT"]) | del(.["901"]) | del(.["540"])'
 | ioisis jsonl2iso - file.iso
 ```
 
 By default, the input and output are the standard streams,
-but for MST+XRF input, where the MST must be given
-and the matching XRF will be found based on the file name.
+but the `bruma-mst2jsonl` MST input and the `jsonl2mst` MST output
+must be a file name, not a pipe/stream.
+For the former command,
+the matching XRF will be found based on the file name.
+For the latter,
+the control record is created at the end,
+which makes the random access a requirement.
 
 There are several other options to these commands
 intended to customize the process,
@@ -58,10 +73,10 @@ To load ISIS data, you can use the `iter_records` function
 of the respective module:
 
 ```python
-from ioisis import iso, mst
+from ioisis import bruma, iso
 
-# For MST files, you must use the filename
-for record_dict in mst.iter_records("file.mst"):
+# For MST files with Bruma, you must use the filename
+for record_dict in bruma.iter_records("file.mst"):
     ...
 
 # For ISO files, you can either use a file name
@@ -71,6 +86,9 @@ with open("file.iso", "rb") as raw_iso_file:
         ...
 ```
 
+See also the `iter_raw_tl` functions and the `mst.StructCreator` class
+for more information on how to load data in a more customized way.
+
 One can generate a single ISO record from a dict of data:
 
 ```python
@@ -79,6 +97,13 @@ One can generate a single ISO record from a dict of data:
 b'000610000000000490004500001000800000008000300008#testing#it##\n'
 
 ```
+
+See also the `mst.StructCreator.build_stream` method
+for information on how to create MST files.
+
+By default, the `mst` module doesn't use/create XRF files.
+One can create/load XRF data using the struct created by
+the `mst.StructCreator.create_xrf_struct` method.
 
 
 ### ISO construct containers (lower level data access Python API)
