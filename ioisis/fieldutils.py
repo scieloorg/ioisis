@@ -12,10 +12,10 @@ import re
 # - 0b1111_0xxx: start byte of a 4-bytes sequence (21 CP bits)
 #
 # Code points of ASCII bytes should not be "overlong" UTF-8 sequences:
-# the 2-bytes sequences can encode unicode up to 11 code point bits,
-# but we need to enforce the it to have at least 8 code point bits,
-# so the lowest 2-bytes UTF-8 is 0xc280 (U+0080).
-# Likewise, the last code point is U+10ffff,
+# 2-bytes sequences can encode unicode up to 11 code point bits,
+# but we need to enforce it to have at least 8 code point bits,
+# so the lowest 2-bytes valid sequence in UTF-8 is 0xc280 (U+0080).
+# Likewise, the last unicode code point is U+10ffff,
 # and a sequence should not represent a code point greater than that,
 # so the highest 4-bytes UTF-8 is 0xf48fbfbf.
 # Sequences should be stored with as fewer bytes as possible,
@@ -28,7 +28,7 @@ import re
 # It means that the range from 0xeda080 to 0xedbfbf is invalid.
 #
 # See also RFC3629 (https://tools.ietf.org/html/rfc3629)
-# for an authoritative source of these.
+# for an authoritative source of the information above.
 UTF8_MB_REGEX = re.compile(  # Gets joined UTF-8 multi-byte sequences
     b"((?:[\\xc2-\\xdf][\\x80-\\xbf]"
     b" |   \\xe0       [\\xa0-\\xbf][\\x80-\\xbf]"

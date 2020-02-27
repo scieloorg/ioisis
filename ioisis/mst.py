@@ -5,8 +5,8 @@ can be found at:
 
 https://unesdoc.unesco.org/ark:/48223/pf0000211280
 
-The unpacked, FFI, shifted or otherwise customized file formats
-were discovered based by the analysis of actual MST files
+The unpacked, FFI, shifted and other customized file formats
+were discovered based on the analysis of actual MST files
 as well as the source code of CISIS and Bruma.
 """
 from binascii import b2a_hex
@@ -163,7 +163,7 @@ class StructCreator:
         used to replace ``None`` in the remaining filler arguments.
     control_filler : bytes or None
         Filler character for the trailing bytes of the control record.
-        In some obscure cases of this might be ``"\xff"``,
+        In some obscure cases of this might be ``"\\xff"``,
         as CISIS describes for Unisys.
     slack_filler : bytes or None
         Padding filler character
@@ -369,6 +369,7 @@ class StructCreator:
             ),
 
             "_start" / Tell,
+
             # Build time pre-computed information
             "_build_len_list" / Computed(
                 lambda this: None if "fields" not in this else
