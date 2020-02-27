@@ -485,7 +485,7 @@ class StructCreator:
             Terminated,
         )
 
-    def iter_con(self, mst_stream, yield_control_record=False):
+    def iter_con(self, mst_stream, yield_control_record=False): # noqa: C
         """Generator of records as parsed construct.Container objects.
 
         Parameters
