@@ -193,7 +193,7 @@ class SubfieldParser:
 
 def tl2record(tl, sfp=None, mode="field"):
     """Converter of a record from a tidy list to a dictionary."""
-    if mode in "field":
+    if mode == "field":
         items = tl
     elif mode == "pairs":
         items = [(k, sfp(v)) for k, v in tl]
@@ -215,7 +215,7 @@ def record2tl(record, sfp=None, mode="field"):
         for v in values:
             items.append((k, v))
 
-    if mode in "field":
+    if mode == "field":
         return items
     elif mode == "pairs":
         return [(k, sfp.unparse(*v)) for k, v in items]
