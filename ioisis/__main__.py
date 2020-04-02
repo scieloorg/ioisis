@@ -131,7 +131,8 @@ iso_options = [
 
 jsonl_mode_option = click.option(
     "--mode", "-m",
-    type=click.Choice(["field", "pairs", "nest"], case_sensitive=False),
+    type=click.Choice(["field", "pairs", "nest", "revnest"],
+                      case_sensitive=False),
     default="field",
     help="Mode of JSONL record structure processing "
          "and of field/subfield parsing.",

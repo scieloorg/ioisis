@@ -199,6 +199,8 @@ def tl2record(tl, sfp=None, mode="field"):
         items = [(k, sfp(v)) for k, v in tl]
     elif mode == "nest":
         items = [(k, dict(sfp(v))) for k, v in tl]
+    elif mode == "revnest":
+        items = [(k, dict(reversed(list(sfp(v))))) for k, v in tl]
     else:
         raise ValueError(f"Unknown mode {mode!r}")
     result = defaultdict(list)
@@ -219,6 +221,8 @@ def record2tl(record, sfp=None, mode="field"):
         return [(k, sfp.unparse(*v)) for k, v in items]
     elif mode == "nest":
         return [(k, sfp.unparse(*v.items())) for k, v in items]
+    elif mode == "revnest":
+        return [(k, sfp.unparse(*reversed(v.items()))) for k, v in items]
     else:
         raise ValueError(f"Unknown mode {mode!r}")
 
