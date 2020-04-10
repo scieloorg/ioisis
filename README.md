@@ -58,11 +58,19 @@ The valid values for it are:
 * `pairs`:
   Split the field string as an array of `[key, value]` subfield pairs
 * `nest`:
-  Split the field string as a `{key: value}` object
+  Split the field string as a `{key: value}` object,
+  keeping the last subfield value when the key appears more than once
+* `inest`:
+  CISIS-like subfield nesting processing, similar to the `nest`,
+  but keeps the first entry with the key instead of the last one
+  (only makes difference when `--no-number`)
 
 When used together with `--no-number`,
 these 3 modes are respectively similar
 to the `-mt1`, `-mt2` and `-mt3` options of `isis2json`.
+The `inest` mode isn't available in `isis2json`,
+it follows the CISIS behavior on subfield querying instead.
+
 
 Try `ioisis --help` for more information.
 
