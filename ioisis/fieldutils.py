@@ -191,6 +191,17 @@ class SubfieldParser:
                 raise ValueError(f"Invalid subfield[{idx}] value {vs!r}")
 
 
+def inest(pairs):
+    """Dict creation function
+    that keeps the first value instead of the last one
+    when a key is repeated.
+    """
+    result = {}
+    for pair in pairs:
+        result.setdefault(*pair)
+    return result
+
+
 def tl2record(tl, sfp=None, mode="field"):
     """Converter of a record from a tidy list to a dictionary."""
     if mode == "field":
@@ -199,8 +210,8 @@ def tl2record(tl, sfp=None, mode="field"):
         items = [(k, sfp(v)) for k, v in tl]
     elif mode == "nest":
         items = [(k, dict(sfp(v))) for k, v in tl]
-    elif mode == "revnest":
-        items = [(k, dict(reversed(list(sfp(v))))) for k, v in tl]
+    elif mode == "inest":
+        items = [(k, inest(sfp(v))) for k, v in tl]
     else:
         raise ValueError(f"Unknown mode {mode!r}")
     result = defaultdict(list)
@@ -219,10 +230,8 @@ def record2tl(record, sfp=None, mode="field"):
         return items
     elif mode == "pairs":
         return [(k, sfp.unparse(*v)) for k, v in items]
-    elif mode == "nest":
+    elif mode in ["nest", "inest"]:
         return [(k, sfp.unparse(*v.items())) for k, v in items]
-    elif mode == "revnest":
-        return [(k, sfp.unparse(*reversed(v.items()))) for k, v in items]
     else:
         raise ValueError(f"Unknown mode {mode!r}")
 
