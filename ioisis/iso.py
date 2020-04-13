@@ -10,7 +10,7 @@ from itertools import accumulate
 from construct import Array, Bytes, Check, Computed, \
                       Const, Container, Default, ExprAdapter, \
                       FocusedSeq, Prefixed, RawCopy, \
-                      Rebuild, Select, Struct, Terminated, this
+                      Rebuild, Select, Struct, Terminated
 
 from .ccons import IntASCII, LineSplitRestreamed, \
                    DEFAULT_LINE_LEN, DEFAULT_NEWLINE
@@ -65,8 +65,7 @@ def create_record_struct(
         "indicator_count" / Default(IntASCII(1), 0),
         "identifier_len" / Default(IntASCII(1), 0),
         "base_addr" / Rebuild(IntASCII(5),
-                              LEADER_LEN + this._build_dir_len
-                                         + ft_len),
+            lambda this: LEADER_LEN + this._build_dir_len + ft_len),
         "custom_3" / Default(Bytes(3), b"000"),
 
         # Directory entry map (trailing part of the leader)
@@ -77,7 +76,7 @@ def create_record_struct(
 
         # The ISO leader/header doesn't have the number of fields,
         # but it can be found from the base address
-        "num_fields" / Computed(
+        "num_fields" / Computed(lambda this:
             (this.base_addr - LEADER_LEN - ft_len) //
             (TAG_LEN + this.len_len + this.pos_len + this.custom_len)
         ),
@@ -88,13 +87,13 @@ def create_record_struct(
         # Directory
         "dir" / Struct(
             "tag" / Bytes(TAG_LEN),
-            "len" / Rebuild(IntASCII(this._.len_len),
+            "len" / Rebuild(IntASCII(lambda this: this._.len_len),
                             lambda this: this._._build_len_list[this._index]),
-            "pos" / Rebuild(IntASCII(this._.pos_len),
+            "pos" / Rebuild(IntASCII(lambda this: this._.pos_len),
                             lambda this: this._._build_pos_list[this._index]),
-            "custom" / Default(Bytes(this._.custom_len),
-                               b"0" * this._.custom_len),
-        )[this.num_fields],
+            "custom" / Default(Bytes(lambda this: this._.custom_len),
+                               lambda this: b"0" * this._.custom_len),
+        )[lambda this: this.num_fields],
         Check(lambda this: this.num_fields == 0 or (
             this.dir[0].pos == 0 and
             all(
@@ -107,7 +106,7 @@ def create_record_struct(
 
         # Field data
         "fields" / Array(
-            this.num_fields,
+            lambda this: this.num_fields,
             FocusedSeq(
                 "value",
                 "value" / Bytes(
