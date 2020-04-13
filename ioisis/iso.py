@@ -12,7 +12,7 @@ from construct import Array, Bytes, Check, Computed, \
                       FocusedSeq, Prefixed, RawCopy, \
                       Rebuild, Select, Struct, Terminated, this
 
-from .ccons import IntInASCII, LineSplitRestreamed, \
+from .ccons import IntASCII, LineSplitRestreamed, \
                    DEFAULT_LINE_LEN, DEFAULT_NEWLINE
 from .streamutils import should_be_file, TightBufferReadOnlyBytesStreamWrapper
 
@@ -62,18 +62,17 @@ def create_record_struct(
         "type" / Default(Bytes(1), b"0"),
         "custom_2" / Default(Bytes(2), b"00"),
         "coding" / Default(Bytes(1), b"0"),
-        "indicator_count" / Default(IntInASCII(Bytes(1)), 0),
-        "identifier_len" / Default(IntInASCII(Bytes(1)), 0),
-        "base_addr" / Rebuild(IntInASCII(Bytes(5)),
+        "indicator_count" / Default(IntASCII(1), 0),
+        "identifier_len" / Default(IntASCII(1), 0),
+        "base_addr" / Rebuild(IntASCII(5),
                               LEADER_LEN + this._build_dir_len
                                          + ft_len),
         "custom_3" / Default(Bytes(3), b"000"),
 
         # Directory entry map (trailing part of the leader)
-        "len_len" / Default(IntInASCII(Bytes(1)), DEFAULT_LEN_LEN),
-        "pos_len" / Default(IntInASCII(Bytes(1)), DEFAULT_POS_LEN),
-        "custom_len" / Default(IntInASCII(Bytes(1)),
-                               DEFAULT_CUSTOM_LEN),
+        "len_len" / Default(IntASCII(1), DEFAULT_LEN_LEN),
+        "pos_len" / Default(IntASCII(1), DEFAULT_POS_LEN),
+        "custom_len" / Default(IntASCII(1), DEFAULT_CUSTOM_LEN),
         "reserved" / Default(Bytes(1), b"0"),
 
         # The ISO leader/header doesn't have the number of fields,
@@ -89,9 +88,9 @@ def create_record_struct(
         # Directory
         "dir" / Struct(
             "tag" / Bytes(TAG_LEN),
-            "len" / Rebuild(IntInASCII(Bytes(this._.len_len)),
+            "len" / Rebuild(IntASCII(this._.len_len),
                             lambda this: this._._build_len_list[this._index]),
-            "pos" / Rebuild(IntInASCII(Bytes(this._.pos_len)),
+            "pos" / Rebuild(IntASCII(this._.pos_len),
                             lambda this: this._._build_pos_list[this._index]),
             "custom" / Default(Bytes(this._.custom_len),
                                b"0" * this._.custom_len),
@@ -125,7 +124,7 @@ def create_record_struct(
     # This includes (and checks) the total_len prefix
     result = ExprAdapter(
         RawCopy(Prefixed(
-            lengthfield=IntInASCII(Bytes(TOTAL_LEN_LEN)),
+            lengthfield=IntASCII(TOTAL_LEN_LEN),
             subcon=prefixless,
             includelength=True,
         )),

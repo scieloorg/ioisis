@@ -1,7 +1,8 @@
 """Custom construct subclasses."""
 from contextlib import closing
 
-from construct import Adapter, Array, Check, RepeatUntil, Struct, Subconstruct
+from construct import Adapter, Array, Bytes, Check, RepeatUntil, \
+                      Struct, Subconstruct
 
 from .streamutils import LineSplittedBytesStreamWrapper
 
@@ -61,14 +62,17 @@ class IndexedRange(Adapter):
         } for idx, el in enumerate(obj, 1)]
 
 
-class IntInASCII(Adapter):
-    """Adapter for Bytes to use it as ASCII numbers."""
-    def _decode(self, obj, context, path):
+class IntASCII(Bytes):
+    """ASCII numbers with the given number of bytes."""
+    def _parse(self, stream, context, path):
+        obj = super()._parse(stream, context, path)
         return int(obj, base=10)
 
-    def _encode(self, obj, context, path):
-        length = self.subcon.sizeof(**context)
-        return (b"%d" % obj).zfill(length)
+    def _build(self, obj, stream, context, path):
+        length = self._sizeof(context, path)
+        obj_as_bytes = (b"%d" % obj).zfill(length)
+        super()._build(obj_as_bytes, stream, context, path)
+        return obj
 
 
 class LineSplitRestreamed(Subconstruct):
