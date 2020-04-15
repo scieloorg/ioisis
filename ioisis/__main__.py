@@ -148,6 +148,8 @@ jsonl_mode_option = click.option(
     type=click.Choice(["field", "pairs", "nest", "inest", "tidy"],
                       case_sensitive=False),
     default="field",
+    callback=lambda ctx, param, value: setattr(ctx, "mode", value) or value,
+    is_eager=True,
     help="Mode of JSONL record structure processing "
          "and of field/subfield parsing.",
 )
@@ -231,7 +233,10 @@ metadata_filtering_options = [
         "--prepend-mfn/--no-mfn",
         default=False,
         show_default=True,
-        help='Prepend the "mfn" field.',
+        callback=lambda ctx, param, value:
+            value or getattr(ctx, "mode", None) == "tidy",
+        help='Prepend the "mfn" field. '
+             'This option has no effect in the "tidy" mode',
     ),
     option(
         "--prepend-status/--no-status",

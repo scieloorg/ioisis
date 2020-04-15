@@ -204,14 +204,19 @@ def inest(pairs):
 
 def tl2record(tl, sfp=None, mode="field"):
     """Converter of a record from a tidy list to a dictionary."""
-    if mode == "tidy":
+    if mode == "tidy":  # Requires --prepend-mfn
+        tlit = iter(tl)
+        mfn_key, mfn = next(tlit)
+        mfn = int(mfn)
+        if mfn_key not in [b"mfn", "mfn"]:
+            raise ValueError("Missing MFN")
         index, tag, data = (
             ("index", "tag", "data")
-            if isinstance((tl or [("",)])[0][0], str) else
+            if isinstance(mfn_key, str) else
             (b"index", b"tag", b"data")
         )
-        return [{index: idx, tag: k, data: v}
-                for idx, (k, v) in enumerate(tl)]
+        return [{mfn_key: mfn, index: idx, tag: k, data: v}
+                for idx, (k, v) in enumerate(tlit)]
     if mode == "field":
         items = tl
     elif mode == "pairs":
