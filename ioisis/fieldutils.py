@@ -204,6 +204,14 @@ def inest(pairs):
 
 def tl2record(tl, sfp=None, mode="field"):
     """Converter of a record from a tidy list to a dictionary."""
+    if mode == "tidy":
+        index, tag, data = (
+            ("index", "tag", "data")
+            if isinstance((tl or [("",)])[0][0], str) else
+            (b"index", b"tag", b"data")
+        )
+        return [{index: idx, tag: k, data: v}
+                for idx, (k, v) in enumerate(tl)]
     if mode == "field":
         items = tl
     elif mode == "pairs":
