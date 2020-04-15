@@ -102,14 +102,18 @@ def kw_call(func, *args, **kwargs):
     return func(*args, **{k: kwargs[k] for k in sig_keys if k in kwargs})
 
 
-def write_json(dict_data, stream, ensure_ascii=False):
-    ujson.dump(
-        dict_data, stream,
-        ensure_ascii=ensure_ascii,
-        escape_forward_slashes=False,
-    )
-    stream.write("\n")
-    stream.flush()
+def write_json(decoded_record, stream, ensure_ascii=False):
+    if isinstance(decoded_record, list):  # Tidy format
+        for item in decoded_record:
+            write_json(item, stream, ensure_ascii=ensure_ascii)
+    else:  # Dict data
+        ujson.dump(
+            decoded_record, stream,
+            ensure_ascii=ensure_ascii,
+            escape_forward_slashes=False,
+        )
+        stream.write("\n")
+        stream.flush()
 
 
 iso_options = [
