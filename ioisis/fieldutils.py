@@ -243,7 +243,9 @@ def nest_decode(obj, encoding):
     if hasattr(obj, "items"):  # isinstance(obj, dict)
         return {k.decode("ascii"): nest_decode(v, encoding)
                 for k, v in obj.items()}
-    return [nest_decode(value, encoding) for value in obj]
+    if hasattr(obj, "__iter__"):
+        return [nest_decode(value, encoding) for value in obj]
+    return obj
 
 
 def nest_encode(obj, encoding):
@@ -253,7 +255,9 @@ def nest_encode(obj, encoding):
     if hasattr(obj, "items"):  # isinstance(obj, dict)
         return {k.encode("ascii"): nest_encode(v, encoding)
                 for k, v in obj.items()}
-    return [nest_encode(value, encoding) for value in obj]
+    if hasattr(obj, "__iter__"):
+        return [nest_encode(value, encoding) for value in obj]
+    return obj
 
 
 def utf8_fix_nest_decode(obj, encoding):
@@ -269,7 +273,9 @@ def utf8_fix_nest_decode(obj, encoding):
     if hasattr(obj, "items"):  # isinstance(obj, dict)
         return {k.decode("ascii"): utf8_fix_nest_decode(v, encoding)
                 for k, v in obj.items()}
-    return [utf8_fix_nest_decode(value, encoding) for value in obj]
+    if hasattr(obj, "__iter__"):
+        return [utf8_fix_nest_decode(value, encoding) for value in obj]
+    return obj
 
 
 def hybrid_utf8_decode(value, encoding):
