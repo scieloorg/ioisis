@@ -102,6 +102,16 @@ def kw_call(func, *args, **kwargs):
     return func(*args, **{k: kwargs[k] for k in sig_keys if k in kwargs})
 
 
+def write_json(dict_data, stream, ensure_ascii=False):
+    ujson.dump(
+        dict_data, stream,
+        ensure_ascii=ensure_ascii,
+        escape_forward_slashes=False,
+    )
+    stream.write("\n")
+    stream.flush()
+
+
 iso_options = [
     iso_bytes_option_with_default(
         "field_terminator", "--ft",
@@ -439,13 +449,7 @@ def bruma_mst2jsonl(mst_input, jsonl_output, mst_encoding, mode, **kwargs):
     itl = kw_call(bruma.iter_tl, mst_input, **kwargs, encoding=mst_encoding)
     for tl_decoded in itl:
         record = tl2record(tl_decoded, sfp, mode)
-        ujson.dump(
-            record, jsonl_output,
-            ensure_ascii=ensure_ascii,
-            escape_forward_slashes=False,
-        )
-        jsonl_output.write("\n")
-        jsonl_output.flush()
+        write_json(record, jsonl_output, ensure_ascii=ensure_ascii)
 
 
 @main.command()
@@ -464,15 +468,8 @@ def mst2jsonl(mst_input, jsonl_output, mst_encoding, mode, utf8_fix, **kwargs):
     sfp = kw_call(SubfieldParser, **kwargs)
     decode = utf8_fix_nest_decode if utf8_fix else nest_decode
     for tl in kw_call(mst_sc.iter_raw_tl, mst_input, **kwargs):
-        record = tl2record(tl, sfp, mode)
-        ujson.dump(
-            decode(record, encoding=mst_encoding),
-            jsonl_output,
-            ensure_ascii=ensure_ascii,
-            escape_forward_slashes=False,
-        )
-        jsonl_output.write("\n")
-        jsonl_output.flush()
+        record = decode(tl2record(tl, sfp, mode), encoding=mst_encoding)
+        write_json(record, jsonl_output, ensure_ascii=ensure_ascii)
 
 
 @main.command()
@@ -510,15 +507,8 @@ def iso2jsonl(iso_input, jsonl_output, iso_encoding, mode, utf8_fix, **kwargs):
     sfp = kw_call(SubfieldParser, **kwargs)
     decode = utf8_fix_nest_decode if utf8_fix else nest_decode
     for tl in kw_call(iso.iter_raw_tl, iso_input, **kwargs):
-        record = tl2record(tl, sfp, mode)
-        ujson.dump(
-            decode(record, encoding=iso_encoding),
-            jsonl_output,
-            ensure_ascii=ensure_ascii,
-            escape_forward_slashes=False,
-        )
-        jsonl_output.write("\n")
-        jsonl_output.flush()
+        record = decode(tl2record(tl, sfp, mode), encoding=iso_encoding)
+        write_json(record, jsonl_output, ensure_ascii=ensure_ascii)
 
 
 @main.command()
