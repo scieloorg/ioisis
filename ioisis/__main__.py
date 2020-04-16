@@ -102,6 +102,17 @@ def kw_call(func, *args, **kwargs):
     return func(*args, **{k: kwargs[k] for k in sig_keys if k in kwargs})
 
 
+def read_json_decoded_record(stream):
+    for line in stream:
+        yield ujson.loads(line)
+
+
+def read_json_raw_tl(stream, mode, sfp, encoding):
+    for decoded_record in read_json_decoded_record(stream):
+        record = nest_encode(decoded_record, encoding=encoding)
+        yield record2tl(record, sfp, mode)
+
+
 def write_json(decoded_record, stream, ensure_ascii=False):
     if isinstance(decoded_record, list):  # Tidy format
         for item in decoded_record:
@@ -492,13 +503,14 @@ def jsonl2mst(jsonl_input, mst_output, mst_encoding, mode, **kwargs):
     """JSON Lines to ISIS/FFI Master File Format."""
     sfp = kw_call(SubfieldParser, **kwargs, check=kwargs["sfcheck"])
     mst_sc = kw_call(mst.StructCreator, **kwargs)
-    def generate_records():
-        for line in jsonl_input:
-            record = nest_encode(ujson.loads(line), encoding=mst_encoding)
-            tl = record2tl(record, sfp, mode)
-            yield mst.tl2con(tl)
+    tl_gen = read_json_raw_tl(
+        stream=jsonl_input,
+        mode=mode,
+        sfp=sfp,
+        encoding=mst_encoding,
+    )
     with open(mst_output, "wb") as mst_file:
-        mst_sc.build_stream(generate_records(), mst_file)
+        mst_sc.build_stream(map(mst.tl2con, tl_gen), mst_file)
 
 
 @main.command()
@@ -531,9 +543,13 @@ def jsonl2iso(jsonl_input, iso_output, iso_encoding, mode, **kwargs):
     """JSON Lines to ISO2709."""
     record_struct = kw_call(iso.create_record_struct, **kwargs)
     sfp = kw_call(SubfieldParser, **kwargs, check=kwargs["sfcheck"])
-    for line in jsonl_input:
-        record = nest_encode(ujson.loads(line), encoding=iso_encoding)
-        tl = record2tl(record, sfp, mode)
+    tl_gen = read_json_raw_tl(
+        stream=jsonl_input,
+        mode=mode,
+        sfp=sfp,
+        encoding=iso_encoding,
+    )
+    for tl in tl_gen:
         iso_bytes = iso.tl2bytes(tl, record_struct=record_struct)
         iso_output.write(iso_bytes)
         iso_output.flush()
