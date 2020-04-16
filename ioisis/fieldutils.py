@@ -233,13 +233,29 @@ def tl2record(tl, sfp=None, mode="field"):
     return result
 
 
-def record2tl(record, sfp=None, mode="field"):
+def record2tl(record, sfp=None, mode="field", prepend_mfn=False):
     items = []
-    for k, values in record.items():
-        for v in values:
-            items.append((k, v))
+    if mode == "tidy":  # Tidy list of dictionaries
+        mfn_key, index, tag, data, percent_d = (
+            ("mfn", "index", "tag", "data", "%d")
+            if isinstance(next(iter(record[0].keys())), str) else
+            (b"mfn", b"index", b"tag", b"data", b"%d")
+        )
+        mfn = record[0][mfn_key]
+        if prepend_mfn:
+            items.append((mfn_key, percent_d % mfn))
+        for idx, field_dict in enumerate(record):
+            if mfn != field_dict[mfn_key]:  # Should never happen from the CLI
+                raise ValueError("Multiple MFN in a single record")
+            if idx != field_dict[index]:
+                raise ValueError("Invalid index numbering")
+            items.append((field_dict[tag], field_dict[data]))
+    else:
+        for k, values in record.items():
+            for v in values:
+                items.append((k, v))
 
-    if mode == "field":
+    if mode in ["field", "tidy"]:
         return items
     elif mode == "pairs":
         return [(k, sfp.unparse(*v)) for k, v in items]

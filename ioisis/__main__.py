@@ -1,6 +1,7 @@
 from codecs import escape_decode
 from functools import reduce
 from inspect import signature
+from itertools import groupby
 from io import BytesIO
 import signal
 import sys
@@ -102,15 +103,20 @@ def kw_call(func, *args, **kwargs):
     return func(*args, **{k: kwargs[k] for k in sig_keys if k in kwargs})
 
 
-def read_json_decoded_record(stream):
-    for line in stream:
-        yield ujson.loads(line)
+def read_json_decoded_record(stream, mode):
+    if mode == "tidy":
+        fields = map(ujson.loads, stream)
+        for mfn, grp in groupby(fields, key=lambda field: field["mfn"]):
+            yield list(grp)
+    else:
+        for line in stream:
+            yield ujson.loads(line)
 
 
-def read_json_raw_tl(stream, mode, sfp, encoding):
-    for decoded_record in read_json_decoded_record(stream):
+def read_json_raw_tl(stream, mode, sfp, encoding, prepend_mfn):
+    for decoded_record in read_json_decoded_record(stream, mode):
         record = nest_encode(decoded_record, encoding=encoding)
-        yield record2tl(record, sfp, mode)
+        yield record2tl(record, sfp, mode, prepend_mfn)
 
 
 def write_json(decoded_record, stream, ensure_ascii=False):
@@ -508,6 +514,7 @@ def jsonl2mst(jsonl_input, mst_output, mst_encoding, mode, **kwargs):
         mode=mode,
         sfp=sfp,
         encoding=mst_encoding,
+        prepend_mfn=True,
     )
     with open(mst_output, "wb") as mst_file:
         mst_sc.build_stream(map(mst.tl2con, tl_gen), mst_file)
@@ -548,6 +555,7 @@ def jsonl2iso(jsonl_input, iso_output, iso_encoding, mode, **kwargs):
         mode=mode,
         sfp=sfp,
         encoding=iso_encoding,
+        prepend_mfn=False,
     )
     for tl in tl_gen:
         iso_bytes = iso.tl2bytes(tl, record_struct=record_struct)
