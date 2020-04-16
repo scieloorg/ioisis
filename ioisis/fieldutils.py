@@ -202,21 +202,26 @@ def inest(pairs):
     return result
 
 
+def _tidy_tl2record(tl):
+    tlit = iter(tl)
+    mfn_key, mfn = next(tlit)
+    mfn = int(mfn)
+    if mfn_key not in [b"mfn", "mfn"]:
+        raise ValueError("Missing MFN")
+    index, tag, data = (
+        ("index", "tag", "data")
+        if isinstance(mfn_key, str) else
+        (b"index", b"tag", b"data")
+    )
+    return [{mfn_key: mfn, index: idx, tag: k, data: v}
+            for idx, (k, v) in enumerate(tlit)]
+
+
 def tl2record(tl, sfp=None, mode="field"):
     """Converter of a record from a tidy list to a dictionary."""
     if mode == "tidy":  # Requires --prepend-mfn
-        tlit = iter(tl)
-        mfn_key, mfn = next(tlit)
-        mfn = int(mfn)
-        if mfn_key not in [b"mfn", "mfn"]:
-            raise ValueError("Missing MFN")
-        index, tag, data = (
-            ("index", "tag", "data")
-            if isinstance(mfn_key, str) else
-            (b"index", b"tag", b"data")
-        )
-        return [{mfn_key: mfn, index: idx, tag: k, data: v}
-                for idx, (k, v) in enumerate(tlit)]
+        return _tidy_tl2record(tl)
+
     if mode == "field":
         items = tl
     elif mode == "pairs":
@@ -233,29 +238,35 @@ def tl2record(tl, sfp=None, mode="field"):
     return result
 
 
-def record2tl(record, sfp=None, mode="field", prepend_mfn=False):
+def _tidy_record2tl(record, prepend_mfn=False):
+    mfn_key, index, tag, data, percent_d = (
+        ("mfn", "index", "tag", "data", "%d")
+        if isinstance(next(iter(record[0].keys())), str) else
+        (b"mfn", b"index", b"tag", b"data", b"%d")
+    )
+    mfn = record[0][mfn_key]
     items = []
-    if mode == "tidy":  # Tidy list of dictionaries
-        mfn_key, index, tag, data, percent_d = (
-            ("mfn", "index", "tag", "data", "%d")
-            if isinstance(next(iter(record[0].keys())), str) else
-            (b"mfn", b"index", b"tag", b"data", b"%d")
-        )
-        mfn = record[0][mfn_key]
-        if prepend_mfn:
-            items.append((mfn_key, percent_d % mfn))
-        for idx, field_dict in enumerate(record):
-            if mfn != field_dict[mfn_key]:  # Should never happen from the CLI
-                raise ValueError("Multiple MFN in a single record")
-            if idx != field_dict[index]:
-                raise ValueError("Invalid index numbering")
-            items.append((field_dict[tag], field_dict[data]))
-    else:
-        for k, values in record.items():
-            for v in values:
-                items.append((k, v))
+    if prepend_mfn:
+        items.append((mfn_key, percent_d % mfn))
+    for idx, field_dict in enumerate(record):
+        if mfn != field_dict[mfn_key]:  # Should never happen from the CLI
+            raise ValueError("Multiple MFN in a single record")
+        if idx != field_dict[index]:
+            raise ValueError("Invalid index numbering")
+        items.append((field_dict[tag], field_dict[data]))
+    return items
 
-    if mode in ["field", "tidy"]:
+
+def record2tl(record, sfp=None, mode="field", prepend_mfn=False):
+    if mode == "tidy":  # Tidy list of dictionaries
+        return _tidy_record2tl(record, prepend_mfn)
+
+    items = []
+    for k, values in record.items():
+        for v in values:
+            items.append((k, v))
+
+    if mode == "field":
         return items
     elif mode == "pairs":
         return [(k, sfp.unparse(*v)) for k, v in items]
