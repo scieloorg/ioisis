@@ -162,7 +162,7 @@ iso_options = [
 
 jsonl_mode_option = click.option(
     "--mode", "-m",
-    type=click.Choice(["field", "pairs", "nest", "inest", "tidy"],
+    type=click.Choice(["field", "pairs", "nest", "inest", "tidy", "stidy"],
                       case_sensitive=False),
     default="field",
     callback=lambda ctx, param, value: setattr(ctx, "mode", value) or value,
@@ -251,9 +251,9 @@ metadata_filtering_options = [
         default=False,
         show_default=True,
         callback=lambda ctx, param, value:
-            value or getattr(ctx, "mode", None) == "tidy",
+            value or getattr(ctx, "mode", None) in ["tidy", "stidy"],
         help='Prepend the "mfn" field. '
-             'This option has no effect in the "tidy" mode',
+             'This option has no effect in the "tidy"/"stidy" modes',
     ),
     option(
         "--prepend-status/--no-status",

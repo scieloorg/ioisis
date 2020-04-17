@@ -202,25 +202,30 @@ def inest(pairs):
     return result
 
 
-def _tidy_tl2record(tl):
+def _tidy_tl2record(tl, sfp=None, split_sub=False):
     tlit = iter(tl)
     mfn_key, mfn = next(tlit)
     mfn = int(mfn)
     if mfn_key not in [b"mfn", "mfn"]:
         raise ValueError("Missing MFN")
-    index, tag, data = (
-        ("index", "tag", "data")
+    index, tag, data, sindex, sub = (
+        ("index", "tag", "data", "sindex", "sub")
         if isinstance(mfn_key, str) else
-        (b"index", b"tag", b"data")
+        (b"index", b"tag", b"data", b"sindex", b"sub")
     )
+    if split_sub:
+        return [{mfn_key: mfn, index: idx, tag: k,
+                 sindex: sidx, sub: sk, data: sv}
+                for idx, (k, v) in enumerate(tlit)
+                for sidx, (sk, sv) in enumerate(sfp(v))]
     return [{mfn_key: mfn, index: idx, tag: k, data: v}
             for idx, (k, v) in enumerate(tlit)]
 
 
 def tl2record(tl, sfp=None, mode="field"):
     """Converter of a record from a tidy list to a dictionary."""
-    if mode == "tidy":  # Requires --prepend-mfn
-        return _tidy_tl2record(tl)
+    if mode in ["tidy", "stidy"]:  # Requires --prepend-mfn
+        return _tidy_tl2record(tl, sfp=sfp, split_sub=(mode == "stidy"))
 
     if mode == "field":
         items = tl
