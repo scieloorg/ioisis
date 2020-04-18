@@ -1,5 +1,5 @@
 from collections import Counter, defaultdict
-from itertools import cycle, zip_longest
+from itertools import cycle, groupby, zip_longest
 import re
 
 
@@ -243,7 +243,36 @@ def tl2record(tl, sfp=None, mode="field"):
     return result
 
 
-def _tidy_record2tl(record, prepend_mfn=False):
+def stidy2tidy(record, sfp=None):
+    mfn_key, index, tag, data, percent_d, sindex, sub = (
+        ("mfn", "index", "tag", "data", "%d", "sindex", "sub")
+        if isinstance(next(iter(record[0].keys())), str) else
+        (b"mfn", b"index", b"tag", b"data", b"%d", b"sindex", b"sub")
+    )
+    fields = []
+    for unused, grp in groupby(
+        record,
+        key=lambda field: (field[index], field[mfn_key], field[tag]),
+    ):
+        subfields = list(grp)
+        for sidx, subfield_dict in enumerate(subfields):
+            if sidx != subfield_dict[sindex]:
+                raise ValueError("Invalid sindex numbering")
+        pairs = [(subfield_dict[sub], subfield_dict[data])
+                 for subfield_dict in subfields]
+        first = subfields[0]
+        fields.append({
+            mfn_key: first[mfn_key],
+            index: first[index],
+            tag: first[tag],
+            data: sfp.unparse(*pairs),
+        })
+    return fields
+
+
+def _tidy_record2tl(record, sfp=None, split_sub=False, prepend_mfn=False):
+    if split_sub:
+        record = stidy2tidy(record, sfp=sfp)
     mfn_key, index, tag, data, percent_d = (
         ("mfn", "index", "tag", "data", "%d")
         if isinstance(next(iter(record[0].keys())), str) else
@@ -263,8 +292,9 @@ def _tidy_record2tl(record, prepend_mfn=False):
 
 
 def record2tl(record, sfp=None, mode="field", prepend_mfn=False):
-    if mode == "tidy":  # Tidy list of dictionaries
-        return _tidy_record2tl(record, prepend_mfn)
+    if mode in ["tidy", "stidy"]:  # Tidy list of dictionaries
+        return _tidy_record2tl(record, sfp=sfp, split_sub=(mode == "stidy"),
+                               prepend_mfn=prepend_mfn)
 
     items = []
     for k, values in record.items():

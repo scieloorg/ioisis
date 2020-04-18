@@ -104,7 +104,7 @@ def kw_call(func, *args, **kwargs):
 
 
 def read_json_decoded_record(stream, mode):
-    if mode == "tidy":
+    if mode in ["tidy", "stidy"]:
         fields = map(ujson.loads, stream)
         for mfn, grp in groupby(fields, key=lambda field: field["mfn"]):
             yield list(grp)
