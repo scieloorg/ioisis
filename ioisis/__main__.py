@@ -1,3 +1,4 @@
+import csv
 from codecs import escape_decode
 from functools import reduce
 from inspect import signature
@@ -14,9 +15,14 @@ from .fieldutils import nest_decode, nest_encode, SubfieldParser, \
                         tl2record, record2tl, utf8_fix_nest_decode
 
 
+DEFAULT_CSV_ENCODING = "utf-8"
 DEFAULT_JSONL_ENCODING = "utf-8"
 INPUT_PATH = object()
 OUTPUT_PATH = object()
+CMODE_HEADERS = {
+    "tidy": ["mfn", "index", "tag", "data"],
+    "stidy": ["mfn", "index", "tag", "sindex", "sub", "data"],
+}
 
 
 def apply_decorators(*decorators):
@@ -169,6 +175,14 @@ jsonl_mode_option = click.option(
     is_eager=True,
     help="Mode of JSONL record structure processing "
          "and of field/subfield parsing.",
+)
+
+csv_mode_option = click.option(
+    "--cmode", "-M",
+    type=click.Choice(["tidy", "stidy"], case_sensitive=False),
+    default="tidy",
+    help="Record strategy to split it in a CSV tabular format: "
+         "a line for each fields (tidy) or each subfield (stidy).",
 )
 
 
@@ -561,6 +575,75 @@ def jsonl2iso(jsonl_input, iso_output, iso_encoding, mode, **kwargs):
         iso_bytes = iso.tl2bytes(tl, record_struct=record_struct)
         iso_output.write(iso_bytes)
         iso_output.flush()
+
+
+@main.command("bruma-mst2csv")
+@apply_decorators(*[op for op in metadata_filtering_options
+                    if not op.args[0].startswith("--prepend-mfn")])
+@csv_mode_option
+@apply_decorators(*subfield_options)
+@file_arg_enc_option("mst", INPUT_PATH, mst.DEFAULT_MST_ENCODING)
+@file_arg_enc_option("csv", "w", DEFAULT_CSV_ENCODING)
+def bruma_mst2csv(mst_input, csv_output, mst_encoding, cmode, **kwargs):
+    """MST+XRF to CSV based on a Bruma (requires Java)."""
+    kwargs["prepend_mfn"] = True
+    kwargs_menc = {key: kwargs[key].decode(mst_encoding)
+                   for key in ["prefix", "first"]}
+    sfp = kw_call(SubfieldParser, **{**kwargs, **kwargs_menc})
+    itl = kw_call(bruma.iter_tl, mst_input, **kwargs, encoding=mst_encoding)
+    csv_writer = csv.writer(csv_output)
+    header = CMODE_HEADERS[cmode]
+    csv_writer.writerow(header)
+    for tl_decoded in itl:
+        record = tl2record(tl_decoded, sfp, cmode)
+        csv_writer.writerows([row[k] for k in header] for row in record)
+
+
+@main.command()
+@apply_decorators(*[op for op in mst_options if op.args[0] != "default_shift"])
+@mst_ibp_option
+@apply_decorators(*[op for op in metadata_filtering_options
+                    if not op.args[0].startswith("--prepend-mfn")])
+@csv_mode_option
+@apply_decorators(*subfield_options)
+@utf8_fix_option
+@file_arg_enc_option("mst", "rb", mst.DEFAULT_MST_ENCODING)
+@file_arg_enc_option("csv", "w", DEFAULT_CSV_ENCODING)
+def mst2csv(mst_input, csv_output, mst_encoding, cmode, utf8_fix, **kwargs):
+    """ISIS/FFI Master File Format to CSV."""
+    kwargs["prepend_mfn"] = True
+    mst_sc = kw_call(mst.StructCreator, **kwargs)
+    sfp = kw_call(SubfieldParser, **kwargs)
+    decode = utf8_fix_nest_decode if utf8_fix else nest_decode
+    csv_writer = csv.writer(csv_output)
+    header = CMODE_HEADERS[cmode]
+    csv_writer.writerow(header)
+    for tl in kw_call(mst_sc.iter_raw_tl, mst_input, **kwargs):
+        record = decode(tl2record(tl, sfp, cmode), encoding=mst_encoding)
+        csv_writer.writerows([row[k] for k in header] for row in record)
+
+
+@main.command()
+@apply_decorators(*iso_options)
+@apply_decorators(*[op for op in metadata_filtering_options
+                    if not op.args[0].startswith("--prepend-mfn")])
+@csv_mode_option
+@apply_decorators(*subfield_options)
+@utf8_fix_option
+@file_arg_enc_option("iso", "rb", iso.DEFAULT_ISO_ENCODING)
+@file_arg_enc_option("csv", "w", DEFAULT_CSV_ENCODING)
+def iso2csv(iso_input, csv_output, iso_encoding, cmode, utf8_fix, **kwargs):
+    """ISO2709 to CSV."""
+    kwargs["prepend_mfn"] = True
+    kwargs["record_struct"] = kw_call(iso.create_record_struct, **kwargs)
+    sfp = kw_call(SubfieldParser, **kwargs)
+    decode = utf8_fix_nest_decode if utf8_fix else nest_decode
+    csv_writer = csv.writer(csv_output)
+    header = CMODE_HEADERS[cmode]
+    csv_writer.writerow(header)
+    for tl in kw_call(iso.iter_raw_tl, iso_input, **kwargs):
+        record = decode(tl2record(tl, sfp, cmode), encoding=iso_encoding)
+        csv_writer.writerows([row[k] for k in header] for row in record)
 
 
 if __name__ == "__main__":
