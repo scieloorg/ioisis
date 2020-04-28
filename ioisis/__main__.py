@@ -646,5 +646,37 @@ def iso2csv(iso_input, csv_output, iso_encoding, cmode, utf8_fix, **kwargs):
         csv_writer.writerows([row[k] for k in header] for row in record)
 
 
+@main.command()
+@jsonl_mode_option
+@csv_mode_option
+@apply_decorators(*subfield_options)
+@subfield_unparse_check_option
+@file_arg_enc_option("jsonl", "r", DEFAULT_JSONL_ENCODING)
+@file_arg_enc_option("csv", "w", DEFAULT_CSV_ENCODING)
+def jsonl2csv(jsonl_input, csv_output, mode, cmode, **kwargs):
+    """JSON Lines to CSV."""
+    kwargs_menc = {key: kwargs[key].decode(csv_output.encoding)
+                   for key in ["prefix", "first"]}
+    sfp = kw_call(SubfieldParser, **{**kwargs, **kwargs_menc},
+                  check=kwargs["sfcheck"])
+    record_gen = read_json_decoded_record(stream=jsonl_input, mode=mode)
+    csv_writer = csv.writer(csv_output)
+    header = CMODE_HEADERS[cmode]
+    csv_writer.writerow(header)
+    last_mfn = 0
+    for jrecord in record_gen:  # Encoding is handled by the file I/O
+        if mode not in ["tidy", "stidy"]:
+            if "mfn" in jrecord:  # Put it at the beginning
+                mfn = jrecord.pop("mfn")
+                last_mfn = max(last_mfn, mfn)
+            else:  # Create a new MFN for it
+                last_mfn += 1
+                mfn = last_mfn
+            jrecord = {"mfn": [str(mfn)], **jrecord}
+        tl = record2tl(jrecord, sfp, mode, prepend_mfn=True)
+        crecord = tl2record(tl, sfp, cmode)
+        csv_writer.writerows([row[k] for k in header] for row in crecord)
+
+
 if __name__ == "__main__":
     main()
