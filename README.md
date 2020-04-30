@@ -64,9 +64,19 @@ The valid values for it are:
   CISIS-like subfield nesting processing, similar to the `nest`,
   but keeps the first entry with the key instead of the last one
   (only makes difference when `--no-number`)
+* `tidy`:
+  Tabular format where the records are splitten,
+  and each field is regarded as a single JSON line
+  like `{"mfn": mfn, "index": index, "tag": field_key, "data": value}`
+* `stidy`:
+  Subfield tidy format, it's similar to the `tidy` format
+  but the fields are themselves splitten
+  in a way that each subfield is regarded
+  as a single JSON line in the result,
+  including the subfield key in the `"sub"` key of the result
 
 When used together with `--no-number`,
-these 3 modes are respectively similar
+the `field`, `pairs` and `nest` modes are respectively similar
 to the `-mt1`, `-mt2` and `-mt3` options of `isis2json`.
 The `inest` mode isn't available in `isis2json`,
 it follows the CISIS behavior on subfield querying instead.

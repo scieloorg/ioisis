@@ -223,7 +223,10 @@ def _tidy_tl2record(tl, sfp=None, split_sub=False):
 
 
 def tl2record(tl, sfp=None, mode="field"):
-    """Converter of a record from a tidy list to a dictionary."""
+    """Converter of a record from a tidy list of (key, value) pairs
+    to either a dictionary (field/pairs/nest/inest modes)
+    or a tidy list of dictionaries (tidy/stidy mode).
+    """
     if mode in ["tidy", "stidy"]:  # Requires --prepend-mfn
         return _tidy_tl2record(tl, sfp=sfp, split_sub=(mode == "stidy"))
 

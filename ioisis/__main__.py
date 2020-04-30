@@ -192,16 +192,38 @@ jsonl_mode_option = click.option(
     default="field",
     callback=lambda ctx, param, value: setattr(ctx, "mode", value) or value,
     is_eager=True,
-    help="Mode of JSONL record structure processing "
-         "and of field/subfield parsing.",
+    help="Mode for JSONL record structure processing "
+         "and for its field/subfield parsing. "
+         'The "tidy" and "stidy" are tabular modes '
+         "where each row is a field or a subfield, respectively. "
+         "The remaining modes put each record as a single JSON "
+         "with the field as the key, "
+         'like {"111": [f0], "123": [f1, f2]}, '
+         "with different strategies on how the field values appear "
+         "(f0, f1 and f2 in the example). "
+         'The "field" mode uses the raw field value string. '
+         'The "pairs" mode splits field '
+         "into key-value pairs of subfields "
+         'like [["_", "start"], ["t", "data"]] '
+         'instead of using a raw string like "start^tdata". '
+         'The "nest" and "inest" modes are like the "pairs" mode, '
+         "but uses an object for each field value "
+         "instead of an array of pairs (arrays) of strings. "
+         "As an object, "
+         "subfields with the same key might get overwritten: "
+         'the "nest" uses the last value '
+         "with the duplicated subfield key, "
+         'whereas the "inest" keeps the first value.'
 )
 
 csv_mode_option = click.option(
     "--cmode", "-M",
     type=click.Choice(["tidy", "stidy"], case_sensitive=False),
     default="tidy",
-    help="Record strategy to split it in a CSV tabular format: "
-         "a line for each fields (tidy) or each subfield (stidy).",
+    help="Mode for CSV record structure processing, "
+         "where a record is split in a tabular format "
+         "with a line for each field (tidy) "
+         "or for each subfield (stidy).",
 )
 
 
