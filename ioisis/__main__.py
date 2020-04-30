@@ -743,5 +743,26 @@ def jsonl2csv(jsonl_input, csv_output, mode, cmode, **kwargs):
         csv_writer.writerows([row[k] for k in header] for row in crecord)
 
 
+@main.command()
+@jsonl_mode_option
+@csv_mode_option
+@apply_decorators(*subfield_options)
+@subfield_unparse_check_option
+@file_arg_enc_option("csv", "r", DEFAULT_CSV_ENCODING)
+@file_arg_enc_option("jsonl", "w", DEFAULT_JSONL_ENCODING)
+def csv2jsonl(csv_input, jsonl_output, mode, cmode, **kwargs):
+    """CSV to JSON Lines."""
+    ensure_ascii = jsonl_output.encoding.lower() == "ascii"
+    kwargs_menc = {key: kwargs[key].decode(jsonl_output.encoding)
+                   for key in ["prefix", "first"]}
+    sfp = kw_call(SubfieldParser, **{**kwargs, **kwargs_menc},
+                  check=kwargs["sfcheck"])
+    record_gen = read_csv_decoded_record(stream=csv_input, cmode=cmode)
+    for crecord in record_gen:  # Encoding is handled by the file I/O
+        tl = record2tl(crecord, sfp, cmode, prepend_mfn=True)
+        jrecord = tl2record(tl, sfp, mode)
+        write_json(jrecord, jsonl_output, ensure_ascii=ensure_ascii)
+
+
 if __name__ == "__main__":
     main()
