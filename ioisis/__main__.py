@@ -109,6 +109,25 @@ def kw_call(func, *args, **kwargs):
     return func(*args, **{k: kwargs[k] for k in sig_keys if k in kwargs})
 
 
+def read_csv_decoded_record(stream, cmode):
+    icr = iter(csv.reader(stream))
+    header = next(icr)
+    cmode_header = CMODE_HEADERS[cmode]
+    cmode_types = [int if k in ["mfn", "index", "sindex"] else str
+                   for k in cmode_header]
+    order = [header.index(k) for k in cmode_header]
+    mfn_idx = header.index("mfn")
+    for mfn, grp in groupby(icr, key=lambda row: row[mfn_idx]):
+        kic = list(zip(cmode_header, order, cmode_types))
+        yield [{k: cmtype(row[idx]) for k, idx, cmtype in kic} for row in grp]
+
+
+def read_csv_raw_tl(stream, cmode, sfp, encoding, prepend_mfn):
+    for decoded_record in read_csv_decoded_record(stream, cmode):
+        record = nest_encode(decoded_record, encoding=encoding)
+        yield record2tl(record, sfp, cmode, prepend_mfn)
+
+
 def read_json_decoded_record(stream, mode):
     if mode in ["tidy", "stidy"]:
         fields = map(ujson.loads, stream)
@@ -624,6 +643,28 @@ def mst2csv(mst_input, csv_output, mst_encoding, cmode, utf8_fix, **kwargs):
 
 
 @main.command()
+@apply_decorators(*mst_options)
+@csv_mode_option
+@apply_decorators(*subfield_options)
+@subfield_unparse_check_option
+@file_arg_enc_option("csv", "r", DEFAULT_CSV_ENCODING)
+@file_arg_enc_option("mst", OUTPUT_PATH, mst.DEFAULT_MST_ENCODING)
+def csv2mst(csv_input, mst_output, mst_encoding, cmode, **kwargs):
+    """CSV to ISIS/FFI Master File Format."""
+    sfp = kw_call(SubfieldParser, **kwargs, check=kwargs["sfcheck"])
+    mst_sc = kw_call(mst.StructCreator, **kwargs)
+    tl_gen = read_csv_raw_tl(
+        stream=csv_input,
+        cmode=cmode,
+        sfp=sfp,
+        encoding=mst_encoding,
+        prepend_mfn=True,
+    )
+    with open(mst_output, "wb") as mst_file:
+        mst_sc.build_stream(map(mst.tl2con, tl_gen), mst_file)
+
+
+@main.command()
 @apply_decorators(*iso_options)
 @apply_decorators(*[op for op in metadata_filtering_options
                     if not op.args[0].startswith("--prepend-mfn")])
@@ -644,6 +685,30 @@ def iso2csv(iso_input, csv_output, iso_encoding, cmode, utf8_fix, **kwargs):
     for tl in kw_call(iso.iter_raw_tl, iso_input, **kwargs):
         record = decode(tl2record(tl, sfp, cmode), encoding=iso_encoding)
         csv_writer.writerows([row[k] for k in header] for row in record)
+
+
+@main.command()
+@apply_decorators(*iso_options)
+@csv_mode_option
+@apply_decorators(*subfield_options)
+@subfield_unparse_check_option
+@file_arg_enc_option("csv", "r", DEFAULT_CSV_ENCODING)
+@file_arg_enc_option("iso", "wb", iso.DEFAULT_ISO_ENCODING)
+def csv2iso(csv_input, iso_output, iso_encoding, cmode, **kwargs):
+    """CSV to ISO2709."""
+    record_struct = kw_call(iso.create_record_struct, **kwargs)
+    sfp = kw_call(SubfieldParser, **kwargs, check=kwargs["sfcheck"])
+    tl_gen = read_csv_raw_tl(
+        stream=csv_input,
+        cmode=cmode,
+        sfp=sfp,
+        encoding=iso_encoding,
+        prepend_mfn=False,
+    )
+    for tl in tl_gen:
+        iso_bytes = iso.tl2bytes(tl, record_struct=record_struct)
+        iso_output.write(iso_bytes)
+        iso_output.flush()
 
 
 @main.command()
