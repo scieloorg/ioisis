@@ -45,6 +45,88 @@ UTF8_MB_REGEX = re.compile(  # Gets joined UTF-8 multi-byte sequences
 _EMPTY = object()
 
 
+class FieldTagFormatter:
+    """Format all tags in the given tidy list.
+    The format string (template) can include ``%%``:
+
+    - ``%d'': Tag number where the leading zeros or whitespaces
+              might be controled with a numeric parameter
+              between these two characters, like the printf ``%d''.
+    - ``%r'': Tag as a string in its raw format,
+              either a 3-character string (ISO)
+              or a number without leading zeros (MST).
+              The same behavior of ``%d'' without parameters.
+    - ``%z'': Same to ``%r'', but always removes the leading zeros,
+              even from an ISO tag that isn't numeric.
+    - ``%i'': Field index number in the record,
+              it accepts a numeric parameter like ``%d''.
+    - ``%%'': Escape the ``%'' character.
+    """
+    def __init__(self, template):
+        self.template = template
+        self.is_bytes = isinstance(template, bytes)
+
+        # Stuff to enforce the data type (str or bytes),
+        # cached in a single custom dict
+        sfix = {
+            False: lambda text: text,
+            True: lambda text: text.encode("ascii"),
+        }[self.is_bytes]
+        DictFix = type("DictFix", (dict,), {"__missing__": staticmethod(sfix)})
+        DictFix.__getattr__ = DictFix.__getitem__
+        self._df = df = DictFix()  # Access by item/attribute its name
+
+        # The template parser core
+        regex_str = df[r"%(?P<size>0?[1-9]\d*)?(?P<code>[^%]|$)|(?:[^%]|%%)+"]
+
+        # Builds from the template (including its data type)
+        # a format string to use with the "%" operator
+        self.need_rtag = self.need_ztag = self.need_itag = False
+        parts = []
+        for match in re.finditer(regex_str, template):
+            gtext = match.group()
+            gdict = match.groupdict()
+            gcode = gdict["code"]
+            gsize = gdict["size"] or df[""]
+            if gcode is None:  # The regex makes sure there's no size
+                parts.append(gtext)
+            elif gtext == df["%r"]:
+                parts.append(df["%(rtag)s"])
+                self.need_rtag = True
+            elif gtext == df["%z"]:
+                parts.append(df["%(ztag)s"])
+                self.need_ztag = True
+            elif gcode == df["d"]:  # %d (itag)
+                parts.extend([df["%(itag)"], gsize, df["d"]])
+                self.need_itag = True
+            elif gcode == df["i"]:  # %i (index)
+                parts.extend([df["%(index)"], gsize, df["d"]])
+            else:
+                raise ValueError(f"Unknown format {gtext!r}")
+        self._fmt = df[""].join(parts)
+
+    def __call__(self, tag, index=-1):
+        """Convert the given tag, itag and index (keyword arguments)
+        to a formatted tag string.
+        The required arguments are the ones that appears
+        in the format string of this instance.
+        """
+        df = self._df
+        is_int = isinstance(tag, int)
+        kwargs = {df.index: index}
+        if self.need_rtag:
+            kwargs[df.rtag] = (df["%d"] % tag) if is_int else tag
+        if self.need_itag:
+            kwargs[df.itag] = tag if is_int else int(tag, base=10)
+        if self.need_ztag:
+            if is_int:
+                kwargs[df.ztag] = df["%d"] % tag
+            else:
+                zero = df["0"]
+                kwargs[df.ztag] = tag.lstrip(zero) or zero
+        return self._fmt % kwargs
+
+
 class SubfieldParser:
     """Generate subfield pairs from the given value on calling.
 
