@@ -3,7 +3,56 @@ import types
 
 import pytest
 
-from ioisis.fieldutils import SubfieldParser
+from ioisis.fieldutils import FieldTagFormatter, SubfieldParser
+
+
+FTF_DATA = {  # Items are {id: (template, expected, kwargs)}
+    "percent_z_text":
+        ("%z", "ABC", dict(tag="ABC")),
+    "v_percent_z_text_zero_prefix":
+        ("%z", "BC", dict(tag="0BC")),
+    "percent_r_text_zero_prefix":
+        ("%r", "0BC", dict(tag="0BC")),
+    "v_percent_r_int":
+        ("v%r", "v12312", dict(tag=12312)),
+    "v_percent_04d_int":
+        ("v%04d", "v0012", dict(tag=12)),
+    "index":
+        ("%2i-%d", " 5-15", dict(tag=15, index=5)),
+    "index_miss":
+        ("%i", "-1", dict(tag="ignored")),
+    "all_int": (
+        "%z v%r+%3i-%03i/%i%5d-%05d/%%%d",
+        "27 v27+  5-005/5   27-00027/%27",
+        dict(tag=27, index=5),
+    ),
+    "all_text": (
+        "%z v%r+%3i-%03i/%i%5d-%05d/%%%d",
+        "12 v012+ 19-019/19   12-00012/%12",
+        dict(tag="012", index=19),
+    ),
+}
+
+# Build the test params to create the tests for both str and bytes
+FTF_TEST_PARAMS_STR = [pytest.param(*v, id=k + "_decoded_str")
+                       for k, v in FTF_DATA.items()]
+FTF_TEST_PARAMS_BYTES = [
+    pytest.param(
+        template.encode("ascii"),
+        expected.encode("ascii"),
+        {k: v.encode("ascii") if isinstance(v, str) else v
+         for k, v in kwargs.items()},
+        id=id_ + "_utf8_encoded_bytes",
+    )
+    for id_, (template, expected, kwargs) in FTF_DATA.items()
+]
+FTF_TEST_PARAMS = FTF_TEST_PARAMS_STR + FTF_TEST_PARAMS_BYTES
+
+
+@pytest.mark.parametrize("template, expected, kwargs", FTF_TEST_PARAMS)
+def test_ftf(template, expected, kwargs):
+    ftf = FieldTagFormatter(template)
+    assert ftf(**kwargs) == expected
 
 
 SFP_SIGNATURE = signature(SubfieldParser)
