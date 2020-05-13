@@ -3,6 +3,9 @@ from itertools import cycle, groupby, zip_longest
 import re
 
 
+DEFAULT_FTF_TEMPLATE_STR = "%z"
+DEFAULT_FTF_TEMPLATE_BYTES = DEFAULT_FTF_TEMPLATE_STR.encode("ascii")
+
 # The UTF-8 bytes (and number of bits to store a code point) are:
 #
 # - 0b0xxx_xxxx: single-byte sequence (ASCII)
@@ -127,7 +130,8 @@ class FieldTagFormatter:
         return self._fmt % kwargs
 
 
-DEFAULT_FTF_BYTES = FieldTagFormatter(b"%z")
+DEFAULT_FTF_STR = FieldTagFormatter(DEFAULT_FTF_TEMPLATE_STR)
+DEFAULT_FTF_BYTES = FieldTagFormatter(DEFAULT_FTF_TEMPLATE_BYTES)
 
 
 def con_pairs(con, ftf=DEFAULT_FTF_BYTES):

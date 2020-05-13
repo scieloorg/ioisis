@@ -4,6 +4,7 @@ from hashlib import sha256
 import os
 from urllib.request import urlopen
 
+from .fieldutils import DEFAULT_FTF_STR
 from .java import generator_blocking_process, jvm
 from .mst import DEFAULT_MST_ENCODING
 
@@ -59,6 +60,7 @@ def iter_tl(
     only_active=True,
     prepend_mfn=False,
     prepend_status=False,
+    ftf=DEFAULT_FTF_STR,
 ):
     check_bruma()
     with jvm(domains=["bruma"], classpath=BRUMA_JAR):
@@ -76,6 +78,7 @@ def iter_tl(
                 if prepend_status:
                     status = {"ACTIVE": "0", "LOGDEL": "1"}[status_name]
                     result.append(("status", status))
-                for field in record.getFields():
-                    result.append((field.getId(), field.getContent()))
+                for idx, field in enumerate(record.getFields()):
+                    tag = ftf(field.getId(), idx)
+                    result.append((tag, field.getContent()))
                 yield result
