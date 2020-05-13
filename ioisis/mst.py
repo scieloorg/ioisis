@@ -22,6 +22,7 @@ from construct import Array, BitsInteger, BitStruct, \
                       Tell, Terminated, Union
 
 from .ccons import DictSegSeq, Unnest
+from .fieldutils import con_pairs, DEFAULT_FTF_BYTES
 
 
 DEFAULT_MST_ENCODING = "cp1252"
@@ -36,12 +37,6 @@ DEFAULT_FILLER = b"\x00"
 DEFAULT_RECORD_FILLER = b" "
 DEFAULT_CONTROL_LEN = 64
 DEFAULT_IBP = "check"
-
-
-def con_pairs(con):
-    """Generator of raw ``(tag, field)`` pairs of ``bytes`` objects."""
-    for dir_entry, field_value in zip(con.dir, con.fields):
-        yield b"%d" % dir_entry.tag, field_value
 
 
 def tl2con(tl):
@@ -552,6 +547,7 @@ class StructCreator:
 
     def iter_raw_tl(self, mst_stream, *,
                     only_active=True, prepend_mfn=False, prepend_status=False,
+                    ftf=DEFAULT_FTF_BYTES,
     ):
         for con in self.iter_con(mst_stream):
             if con.get("old_block", 0) != 0 or con.get("old_offset", 0) != 0:
@@ -563,7 +559,7 @@ class StructCreator:
                 result.append((b"mfn", b"%d" % con.mfn))
             if prepend_status:
                 result.append((b"status", b"%d" % con.status))
-            result.extend(con_pairs(con))
+            result.extend(con_pairs(con, ftf=ftf))
             if "ibp" in con and self.ibp == "store":
                 result.append((b"ibp", con["ibp"]))
             yield result

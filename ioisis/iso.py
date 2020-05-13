@@ -14,6 +14,7 @@ from construct import Array, Bytes, Check, Computed, \
 
 from .ccons import IntASCII, LineSplitRestreamed, \
                    DEFAULT_LINE_LEN, DEFAULT_NEWLINE
+from .fieldutils import con_pairs, DEFAULT_FTF_BYTES
 from .streamutils import should_be_file, TightBufferReadOnlyBytesStreamWrapper
 
 
@@ -157,14 +158,9 @@ def iter_records(iso_file, encoding=DEFAULT_ISO_ENCODING, **kwargs):
         yield con2dict(con, encoding=encoding)
 
 
-def con_pairs(con):
-    """Generator of raw ``(tag, field)`` pairs of ``bytes`` objects."""
-    for dir_entry, field_value in zip(con.dir, con.fields):
-        yield dir_entry.tag.lstrip(b"0") or b"0", field_value
-
-
 def iter_raw_tl(iso_file, *,
                 only_active=True, prepend_mfn=False, prepend_status=False,
+                ftf=DEFAULT_FTF_BYTES,
                 record_struct=DEFAULT_RECORD_STRUCT):
     containers = iter_con(iso_file, record_struct=record_struct)
     for mfn, con in enumerate(containers, 1):
@@ -175,7 +171,7 @@ def iter_raw_tl(iso_file, *,
             result.append((b"mfn", b"%d" % mfn))
         if prepend_status:
             result.append((b"status", b"%d" % con.status))
-        result.extend(con_pairs(con))
+        result.extend(con_pairs(con, ftf=ftf))
         yield result
 
 
@@ -185,10 +181,10 @@ def iter_tl(iso_file, encoding=DEFAULT_ISO_ENCODING, **kwargs):
                for tag, field in tl]
 
 
-def con2dict(con, encoding=DEFAULT_ISO_ENCODING):
+def con2dict(con, encoding=DEFAULT_ISO_ENCODING, ftf=DEFAULT_FTF_BYTES):
     """Parsed construct object to dictionary record converter."""
     result = defaultdict(list)
-    for tag_value, field_value in con_pairs(con):
+    for tag_value, field_value in con_pairs(con, ftf=ftf):
         result[tag_value.decode("ascii")].append(field_value.decode(encoding))
     return result
 

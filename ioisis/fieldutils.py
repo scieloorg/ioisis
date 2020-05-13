@@ -127,6 +127,18 @@ class FieldTagFormatter:
         return self._fmt % kwargs
 
 
+DEFAULT_FTF_BYTES = FieldTagFormatter(b"%z")
+
+
+def con_pairs(con, ftf=DEFAULT_FTF_BYTES):
+    """Generator of raw ``(tag, field)`` pairs of ``bytes`` objects.
+    The input should be a raw construct container (dictionary)
+    representing a single record from a parsed ISO or MST file.
+    """
+    for idx, (dir_entry, field_value) in enumerate(zip(con.dir, con.fields)):
+        yield ftf(dir_entry.tag, idx), field_value
+
+
 class SubfieldParser:
     """Generate subfield pairs from the given value on calling.
 
