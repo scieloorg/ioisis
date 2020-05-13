@@ -12,7 +12,8 @@ import ujson
 
 from . import bruma, iso, mst
 from .fieldutils import nest_decode, nest_encode, SubfieldParser, \
-                        tl2record, record2tl, utf8_fix_nest_decode
+                        tl2record, record2tl, utf8_fix_nest_decode, \
+                        DEFAULT_FTF_TEMPLATE_BYTES, FieldTagFormatter
 
 
 DEFAULT_CSV_ENCODING = "utf-8"
@@ -224,6 +225,27 @@ csv_mode_option = click.option(
          "where a record is split in a tabular format "
          "with a line for each field (tidy) "
          "or for each subfield (stidy).",
+)
+
+
+field_tag_format_option = click.option(
+    "--ftf",
+    metavar="BYTES",
+    default=DEFAULT_FTF_TEMPLATE_BYTES,
+    show_default=True,
+    callback=lambda ctx, param, value:
+        FieldTagFormatter(escape_decode(value.encode("ascii"))[0]),
+    help="Field tag format template. It can include: "
+         "%d: tag as a number; "
+         "%r: tag as a raw string (as it appears in the input); "
+         "%z: tag without leading zeros even if it's not a number; "
+         "%i: field index as a number. "
+         "The %d and %i formats accept a number in the middle "
+         "to set the tag string size, like in printf. "
+         "For example: "
+         "%04d would render the tag with 4 characters, like 0012; "
+         "%5i would render the index with 5 characters "
+         "with leading whitespace."
 )
 
 
@@ -518,6 +540,7 @@ def main():
 @main.command("bruma-mst2jsonl")
 @apply_decorators(*metadata_filtering_options)
 @jsonl_mode_option
+@field_tag_format_option
 @apply_decorators(*subfield_options)
 @file_arg_enc_option("mst", INPUT_PATH, mst.DEFAULT_MST_ENCODING)
 @file_arg_enc_option("jsonl", "w", DEFAULT_JSONL_ENCODING)
@@ -538,6 +561,7 @@ def bruma_mst2jsonl(mst_input, jsonl_output, mst_encoding, mode, **kwargs):
 @mst_ibp_option
 @apply_decorators(*metadata_filtering_options)
 @jsonl_mode_option
+@field_tag_format_option
 @apply_decorators(*subfield_options)
 @utf8_fix_option
 @file_arg_enc_option("mst", "rb", mst.DEFAULT_MST_ENCODING)
@@ -579,6 +603,7 @@ def jsonl2mst(jsonl_input, mst_output, mst_encoding, mode, **kwargs):
 @apply_decorators(*iso_options)
 @apply_decorators(*metadata_filtering_options)
 @jsonl_mode_option
+@field_tag_format_option
 @apply_decorators(*subfield_options)
 @utf8_fix_option
 @file_arg_enc_option("iso", "rb", iso.DEFAULT_ISO_ENCODING)
@@ -622,6 +647,7 @@ def jsonl2iso(jsonl_input, iso_output, iso_encoding, mode, **kwargs):
 @apply_decorators(*[op for op in metadata_filtering_options
                     if not op.args[0].startswith("--prepend-mfn")])
 @csv_mode_option
+@field_tag_format_option
 @apply_decorators(*subfield_options)
 @file_arg_enc_option("mst", INPUT_PATH, mst.DEFAULT_MST_ENCODING)
 @file_arg_enc_option("csv", "w", DEFAULT_CSV_ENCODING)
@@ -646,6 +672,7 @@ def bruma_mst2csv(mst_input, csv_output, mst_encoding, cmode, **kwargs):
 @apply_decorators(*[op for op in metadata_filtering_options
                     if not op.args[0].startswith("--prepend-mfn")])
 @csv_mode_option
+@field_tag_format_option
 @apply_decorators(*subfield_options)
 @utf8_fix_option
 @file_arg_enc_option("mst", "rb", mst.DEFAULT_MST_ENCODING)
@@ -691,6 +718,7 @@ def csv2mst(csv_input, mst_output, mst_encoding, cmode, **kwargs):
 @apply_decorators(*[op for op in metadata_filtering_options
                     if not op.args[0].startswith("--prepend-mfn")])
 @csv_mode_option
+@field_tag_format_option
 @apply_decorators(*subfield_options)
 @utf8_fix_option
 @file_arg_enc_option("iso", "rb", iso.DEFAULT_ISO_ENCODING)
