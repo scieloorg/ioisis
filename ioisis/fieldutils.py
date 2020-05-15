@@ -47,6 +47,14 @@ UTF8_MB_REGEX = re.compile(  # Gets joined UTF-8 multi-byte sequences
 _EMPTY = object()
 
 
+def _int_scanf_regex_str(size=1, zero=False):
+    if zero:
+        return f"(\\d{{{size},}}|-\\d{{{max(size - 1, 1)},}})"
+    return "(" + "|".join(
+        " " * (size - idx - 1) + "[1-9-]" + r"\d" * idx for idx in range(size)
+    ) + r"\d*)"
+
+
 class FieldTagFormatter:
     """Format all tags in the given tidy list.
     The format string (template) can include ``%%``:
@@ -93,29 +101,45 @@ class FieldTagFormatter:
 
         # Builds from the template (including its data type)
         # a format string to use with the "%" operator
+        # and a regex to parse a rendered tag string like a "scanf"
         self.need_rtag = self.need_ztag = self.need_itag = False
         parts = []
+        sparts = []
+        self.sparams = []
         for match in re.finditer(regex_str, template):
             gtext = match.group()
             gdict = match.groupdict()
             gcode = gdict["code"]
             gsize = gdict["size"] or df[""]
+            gsize_int = int(gsize) if gsize else 1
+            gzero = gsize.startswith(df["0"])
             if gcode is None:  # The regex makes sure there's no size
                 parts.append(gtext)
+                sparts.append(re.escape(gtext.replace(df["%%"], df["%"])))
             elif gtext == df["%r"]:
                 parts.append(df["%(rtag)s"])
                 self.need_rtag = True
+                sparts.append(df[r"([1-9]\d*)" if int_tags else r"(...)"])
+                self.sparams.append(("tag", None))
             elif gtext == df["%z"]:
                 parts.append(df["%(ztag)s"])
                 self.need_ztag = True
+                sparts.append(df[r"([1-9]\d*)" if int_tags else
+                                 r"([^0]..|[^0].|0)"])
+                self.sparams.append(("tag", None))
             elif gcode == df["d"]:  # %d (itag)
                 parts.extend([df["%(itag)"], gsize, df["d"]])
                 self.need_itag = True
+                sparts.append(df[_int_scanf_regex_str(gsize_int, gzero)])
+                self.sparams.append(("tag", df["0"] if gzero else df[" "]))
             elif gcode == df["i"]:  # %i (index)
                 parts.extend([df["%(index)"], gsize, df["d"]])
+                sparts.append(df[_int_scanf_regex_str(gsize_int, gzero)])
+                self.sparams.append(("index", df["0"] if gzero else df[" "]))
             else:
                 raise ValueError(f"Unknown format {gtext!r}")
         self._fmt = df[""].join(parts)
+        self._scanf_regex = re.compile(df[""].join(sparts))
 
     def __call__(self, tag, index=-1):
         """Convert the given tag, itag and index (keyword arguments)
@@ -137,6 +161,31 @@ class FieldTagFormatter:
                 zero = df["0"]
                 kwargs[df.ztag] = tag.lstrip(zero) or zero
         return self._fmt % kwargs
+
+    def scanf(self, value):
+        """Get the tag string and index from its rendered value."""
+        match = self._scanf_regex.match(value)
+        if not match:
+            raise ValueError(f"Invalid field tag string {value!r}")
+
+        result = defaultdict(list)
+        for (key, prefix), part in zip(self.sparams, match.groups()):
+            result[key].append(part if prefix is None else part.lstrip(prefix))
+
+        if "tag" not in result:
+            tags = {None}
+        elif self.int_tags:
+            tags = set(map(int, result["tag"]))
+        else:
+            tags = set(t.zfill(3) for t in result["tag"])
+        if len(tags) != 1:
+            raise ValueError(f"Multiple tag in field tag string {value!r}")
+
+        indexes = set(map(int, result.get("index", [-1])))
+        if len(indexes) != 1:
+            raise ValueError(f"Multiple index in field tag string {value!r}")
+
+        return tags.pop(), indexes.pop()
 
 
 def con_pairs(con, ftf):

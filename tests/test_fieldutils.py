@@ -19,8 +19,8 @@ FTF_DATA = {  # Items are {id: (template, expected, kwargs)}
         ("v%04d", "v0012", dict(tag=12)),
     "index":
         ("%2i-%d", " 5-15", dict(tag=15, index=5)),
-    "index_miss":
-        ("%i", "-1", dict(tag="ignored")),
+    "index_missing_tag":
+        ("%i", "-1", dict(tag=None)),
     "all_int": (
         "%z v%r+%3i-%03i/%i%5d-%05d/%%%d",
         "27 v27+  5-005/5   27-00027/%27",
@@ -53,6 +53,14 @@ FTF_TEST_PARAMS = FTF_TEST_PARAMS_STR + FTF_TEST_PARAMS_BYTES
 def test_ftf(template, expected, kwargs):
     ftf = FieldTagFormatter(template, int_tags=isinstance(kwargs["tag"], int))
     assert ftf(**kwargs) == expected
+
+
+@pytest.mark.parametrize("template, expected, kwargs", FTF_TEST_PARAMS)
+def test_ftf_scanf(template, expected, kwargs):
+    ftf = FieldTagFormatter(template, int_tags=isinstance(kwargs["tag"], int))
+    tag, index = ftf.scanf(expected)
+    assert kwargs["tag"] == tag
+    assert kwargs.get("index", -1) == index
 
 
 SFP_SIGNATURE = signature(SubfieldParser)
