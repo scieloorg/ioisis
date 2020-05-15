@@ -13,7 +13,7 @@ import ujson
 from . import bruma, iso, mst
 from .fieldutils import nest_decode, nest_encode, SubfieldParser, \
                         tl2record, record2tl, utf8_fix_nest_decode, \
-                        DEFAULT_FTF_TEMPLATE_BYTES, FieldTagFormatter
+                        DEFAULT_FTF_TEMPLATE, FieldTagFormatter
 
 
 DEFAULT_CSV_ENCODING = "utf-8"
@@ -231,10 +231,11 @@ csv_mode_option = click.option(
 field_tag_format_option = click.option(
     "--ftf",
     metavar="BYTES",
-    default=DEFAULT_FTF_TEMPLATE_BYTES,
+    default=DEFAULT_FTF_TEMPLATE,
     show_default=True,
     callback=lambda ctx, param, value:
-        FieldTagFormatter(escape_decode(value.encode("ascii"))[0]),
+        FieldTagFormatter(escape_decode(value.encode("ascii"))[0],
+                          int_tags="mst" in ctx.info_name),
     help="Field tag format template. It can include: "
          "%d: tag as a number; "
          "%r: tag as a raw string (as it appears in the input); "

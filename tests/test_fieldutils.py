@@ -51,7 +51,7 @@ FTF_TEST_PARAMS = FTF_TEST_PARAMS_STR + FTF_TEST_PARAMS_BYTES
 
 @pytest.mark.parametrize("template, expected, kwargs", FTF_TEST_PARAMS)
 def test_ftf(template, expected, kwargs):
-    ftf = FieldTagFormatter(template)
+    ftf = FieldTagFormatter(template, int_tags=isinstance(kwargs["tag"], int))
     assert ftf(**kwargs) == expected
 
 

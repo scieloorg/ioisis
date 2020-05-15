@@ -4,7 +4,7 @@ from hashlib import sha256
 import os
 from urllib.request import urlopen
 
-from .fieldutils import DEFAULT_FTF_STR
+from .fieldutils import DEFAULT_FTF_TEMPLATE, FieldTagFormatter
 from .java import generator_blocking_process, jvm
 from .mst import DEFAULT_MST_ENCODING
 
@@ -60,7 +60,7 @@ def iter_tl(
     only_active=True,
     prepend_mfn=False,
     prepend_status=False,
-    ftf=DEFAULT_FTF_STR,
+    ftf=FieldTagFormatter(DEFAULT_FTF_TEMPLATE.decode("ascii"), int_tags=True),
 ):
     check_bruma()
     with jvm(domains=["bruma"], classpath=BRUMA_JAR):

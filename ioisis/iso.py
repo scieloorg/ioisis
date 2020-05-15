@@ -14,13 +14,14 @@ from construct import Array, Bytes, Check, Computed, \
 
 from .ccons import IntASCII, LineSplitRestreamed, \
                    DEFAULT_LINE_LEN, DEFAULT_NEWLINE
-from .fieldutils import con_pairs, DEFAULT_FTF_BYTES
+from .fieldutils import con_pairs, DEFAULT_FTF_TEMPLATE, FieldTagFormatter
 from .streamutils import should_be_file, TightBufferReadOnlyBytesStreamWrapper
 
 
 DEFAULT_FIELD_TERMINATOR = b"#"
 DEFAULT_RECORD_TERMINATOR = b"#"
 DEFAULT_ISO_ENCODING = "cp1252"
+DEFAULT_ISO_FTF = FieldTagFormatter(DEFAULT_FTF_TEMPLATE, int_tags=False)
 
 TOTAL_LEN_LEN = 5
 LEADER_LEN = TOTAL_LEN_LEN + 19
@@ -160,7 +161,7 @@ def iter_records(iso_file, encoding=DEFAULT_ISO_ENCODING, **kwargs):
 
 def iter_raw_tl(iso_file, *,
                 only_active=True, prepend_mfn=False, prepend_status=False,
-                ftf=DEFAULT_FTF_BYTES,
+                ftf=DEFAULT_ISO_FTF,
                 record_struct=DEFAULT_RECORD_STRUCT):
     containers = iter_con(iso_file, record_struct=record_struct)
     for mfn, con in enumerate(containers, 1):
@@ -181,7 +182,7 @@ def iter_tl(iso_file, encoding=DEFAULT_ISO_ENCODING, **kwargs):
                for tag, field in tl]
 
 
-def con2dict(con, encoding=DEFAULT_ISO_ENCODING, ftf=DEFAULT_FTF_BYTES):
+def con2dict(con, encoding=DEFAULT_ISO_ENCODING, ftf=DEFAULT_ISO_FTF):
     """Parsed construct object to dictionary record converter."""
     result = defaultdict(list)
     for tag_value, field_value in con_pairs(con, ftf=ftf):

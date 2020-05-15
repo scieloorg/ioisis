@@ -22,10 +22,12 @@ from construct import Array, BitsInteger, BitStruct, \
                       Tell, Terminated, Union
 
 from .ccons import DictSegSeq, Unnest
-from .fieldutils import con_pairs, DEFAULT_FTF_BYTES
+from .fieldutils import con_pairs, DEFAULT_FTF_TEMPLATE, FieldTagFormatter
 
 
 DEFAULT_MST_ENCODING = "cp1252"
+DEFAULT_MST_FTF = FieldTagFormatter(DEFAULT_FTF_TEMPLATE, int_tags=True)
+
 DEFAULT_ENDIANNESS = "little"
 DEFAULT_FORMAT = "isis"
 DEFAULT_LOCKABLE = True
@@ -547,7 +549,7 @@ class StructCreator:
 
     def iter_raw_tl(self, mst_stream, *,
                     only_active=True, prepend_mfn=False, prepend_status=False,
-                    ftf=DEFAULT_FTF_BYTES,
+                    ftf=DEFAULT_MST_FTF,
     ):
         for con in self.iter_con(mst_stream):
             if con.get("old_block", 0) != 0 or con.get("old_offset", 0) != 0:

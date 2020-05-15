@@ -3,8 +3,7 @@ from itertools import cycle, groupby, zip_longest
 import re
 
 
-DEFAULT_FTF_TEMPLATE_STR = "%z"
-DEFAULT_FTF_TEMPLATE_BYTES = DEFAULT_FTF_TEMPLATE_STR.encode("ascii")
+DEFAULT_FTF_TEMPLATE = b"%z"
 
 # The UTF-8 bytes (and number of bits to store a code point) are:
 #
@@ -64,9 +63,19 @@ class FieldTagFormatter:
     - ``%i'': Field index number in the record,
               it accepts a numeric parameter like ``%d''.
     - ``%%'': Escape the ``%'' character.
+
+    Parameters
+    ----------
+    template : str or bytes
+        Format string to build/parse the tag string
+        from the raw tag and index.
+    int_tags : bool
+        If True, the raw tags are always integers (MST).
+        If False, the raw tags are strings with 3 characters (ISO).
     """
-    def __init__(self, template):
+    def __init__(self, template, int_tags):
         self.template = template
+        self.int_tags = int_tags
         self.is_bytes = isinstance(template, bytes)
 
         # Stuff to enforce the data type (str or bytes),
@@ -115,7 +124,7 @@ class FieldTagFormatter:
         in the format string of this instance.
         """
         df = self._df
-        is_int = isinstance(tag, int)
+        is_int = self.int_tags
         kwargs = {df.index: index}
         if self.need_rtag:
             kwargs[df.rtag] = (df["%d"] % tag) if is_int else tag
@@ -130,11 +139,7 @@ class FieldTagFormatter:
         return self._fmt % kwargs
 
 
-DEFAULT_FTF_STR = FieldTagFormatter(DEFAULT_FTF_TEMPLATE_STR)
-DEFAULT_FTF_BYTES = FieldTagFormatter(DEFAULT_FTF_TEMPLATE_BYTES)
-
-
-def con_pairs(con, ftf=DEFAULT_FTF_BYTES):
+def con_pairs(con, ftf):
     """Generator of raw ``(tag, field)`` pairs of ``bytes`` objects.
     The input should be a raw construct container (dictionary)
     representing a single record from a parsed ISO or MST file.
