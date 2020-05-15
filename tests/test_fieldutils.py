@@ -63,6 +63,15 @@ def test_ftf_scanf(template, expected, kwargs):
     assert kwargs.get("index", -1) == index
 
 
+@pytest.mark.parametrize("template", ["v%d", "v%r", "v%4d"])
+@pytest.mark.parametrize("number", [4, 0])
+def test_ftf_scanf_nonzero_format_for_zeroed_inputs_int(template, number):
+    ftag = f"v000{number}"
+    tag, index = FieldTagFormatter(template, int_tags=True).scanf(ftag)
+    assert tag == number
+    assert index == -1
+
+
 SFP_SIGNATURE = signature(SubfieldParser)
 SFP_DEFAULT_EMPTY = SFP_SIGNATURE.parameters["empty"].default
 SFP_DEFAULT_LENGTH = SFP_SIGNATURE.parameters["length"].default

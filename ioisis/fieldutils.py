@@ -51,7 +51,7 @@ def _int_scanf_regex_str(size=1, zero=False):
     if zero:
         return f"(\\d{{{size},}}|-\\d{{{max(size - 1, 1)},}})"
     return "(" + "|".join(
-        " " * (size - idx - 1) + "[1-9-]" + r"\d" * idx for idx in range(size)
+        " " * (size - idx - 1) + "[0-9-]" + r"\d" * idx for idx in range(size)
     ) + r"\d*)"
 
 
@@ -112,20 +112,20 @@ class FieldTagFormatter:
             gcode = gdict["code"]
             gsize = gdict["size"] or df[""]
             gsize_int = int(gsize) if gsize else 1
-            gzero = gsize.startswith(df["0"])
+            gzero = gsize.startswith(df["0"]) or not gsize
             if gcode is None:  # The regex makes sure there's no size
                 parts.append(gtext)
                 sparts.append(re.escape(gtext.replace(df["%%"], df["%"])))
             elif gtext == df["%r"]:
                 parts.append(df["%(rtag)s"])
                 self.need_rtag = True
-                sparts.append(df[r"([1-9]\d*)" if int_tags else r"(...)"])
+                sparts.append(df[r"(\d+)" if int_tags else r"(.{1,3})"])
                 self.sparams.append(("tag", None))
             elif gtext == df["%z"]:
                 parts.append(df["%(ztag)s"])
                 self.need_ztag = True
-                sparts.append(df[r"([1-9]\d*)" if int_tags else
-                                 r"([^0]..|[^0].|0)"])
+                sparts.append(df[r"([1-9]\d*|0)" if int_tags else
+                                 r"([^0]..|[^0].|.)"])
                 self.sparams.append(("tag", None))
             elif gcode == df["d"]:  # %d (itag)
                 parts.extend([df["%(itag)"], gsize, df["d"]])
@@ -170,7 +170,10 @@ class FieldTagFormatter:
 
         result = defaultdict(list)
         for (key, prefix), part in zip(self.sparams, match.groups()):
-            result[key].append(part if prefix is None else part.lstrip(prefix))
+            result[key].append(
+                part if prefix is None else
+                (part.lstrip(prefix) or self._df["0"])
+            )
 
         if "tag" not in result:
             tags = {None}
