@@ -200,6 +200,23 @@ def con_pairs(con, ftf):
         yield ftf(dir_entry.tag, idx), field_value
 
 
+def tl2con(tl, ftf):
+    """Create a record dict that can be used for ISO/MST building
+    from a single tidy list record."""
+    container = {
+        "dir": [],
+        "fields": [],
+    }
+    for k, v in tl:
+        if k == b"mfn":
+            container["mfn"] = int(v)  # Makes no difference for ISO
+        else:
+            tag, index = ftf.scanf(k)
+            container["dir"].append({"tag": tag})
+            container["fields"].append(v)
+    return container
+
+
 class SubfieldParser:
     """Generate subfield pairs from the given value on calling.
 

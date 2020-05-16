@@ -13,7 +13,7 @@ import ujson
 from . import bruma, iso, mst
 from .fieldutils import nest_decode, nest_encode, SubfieldParser, \
                         tl2record, record2tl, utf8_fix_nest_decode, \
-                        DEFAULT_FTF_TEMPLATE, FieldTagFormatter
+                        DEFAULT_FTF_TEMPLATE, FieldTagFormatter, tl2con
 
 
 DEFAULT_CSV_ENCODING = "utf-8"
@@ -236,7 +236,8 @@ field_tag_format_option = click.option(
     callback=lambda ctx, param, value:
         FieldTagFormatter(escape_decode(value.encode("ascii"))[0],
                           int_tags="mst" in ctx.info_name),
-    help="Field tag format template. It can include: "
+    help="Field tag format template for parsing/rendering. "
+         "It can include: "
          "%d: tag as a number; "
          "%r: tag as a raw string (as it appears in the input); "
          "%z: tag without leading zeros even if it's not a number; "
@@ -244,8 +245,9 @@ field_tag_format_option = click.option(
          "The %d and %i formats accept a number in the middle "
          "to set the tag string size, like in printf. "
          "For example: "
-         "%04d would render the tag with 4 characters, like 0012; "
-         "%5i would render the index with 5 characters "
+         "%04d would parse/render the tag with 4 characters, "
+         "like 0012; "
+         "%5i would parse/render the index with 5 characters "
          "with leading whitespace."
 )
 
@@ -581,11 +583,12 @@ def mst2jsonl(mst_input, jsonl_output, mst_encoding, mode, utf8_fix, **kwargs):
 @main.command()
 @apply_decorators(*mst_options)
 @jsonl_mode_option
+@field_tag_format_option
 @apply_decorators(*subfield_options)
 @subfield_unparse_check_option
 @file_arg_enc_option("jsonl", "r", DEFAULT_JSONL_ENCODING)
 @file_arg_enc_option("mst", OUTPUT_PATH, mst.DEFAULT_MST_ENCODING)
-def jsonl2mst(jsonl_input, mst_output, mst_encoding, mode, **kwargs):
+def jsonl2mst(jsonl_input, mst_output, mst_encoding, mode, ftf, **kwargs):
     """JSON Lines to ISIS/FFI Master File Format."""
     sfp = kw_call(SubfieldParser, **kwargs, check=kwargs["sfcheck"])
     mst_sc = kw_call(mst.StructCreator, **kwargs)
@@ -597,7 +600,8 @@ def jsonl2mst(jsonl_input, mst_output, mst_encoding, mode, **kwargs):
         prepend_mfn=True,
     )
     with open(mst_output, "wb") as mst_file:
-        mst_sc.build_stream(map(mst.tl2con, tl_gen), mst_file)
+        con_gen = (tl2con(tl, ftf) for tl in tl_gen)
+        mst_sc.build_stream(con_gen, mst_file)
 
 
 @main.command()
@@ -623,11 +627,12 @@ def iso2jsonl(iso_input, jsonl_output, iso_encoding, mode, utf8_fix, **kwargs):
 @main.command()
 @apply_decorators(*iso_options)
 @jsonl_mode_option
+@field_tag_format_option
 @apply_decorators(*subfield_options)
 @subfield_unparse_check_option
 @file_arg_enc_option("jsonl", "r", DEFAULT_JSONL_ENCODING)
 @file_arg_enc_option("iso", "wb", iso.DEFAULT_ISO_ENCODING)
-def jsonl2iso(jsonl_input, iso_output, iso_encoding, mode, **kwargs):
+def jsonl2iso(jsonl_input, iso_output, iso_encoding, mode, ftf, **kwargs):
     """JSON Lines to ISO2709."""
     record_struct = kw_call(iso.create_record_struct, **kwargs)
     sfp = kw_call(SubfieldParser, **kwargs, check=kwargs["sfcheck"])
@@ -639,7 +644,7 @@ def jsonl2iso(jsonl_input, iso_output, iso_encoding, mode, **kwargs):
         prepend_mfn=False,
     )
     for tl in tl_gen:
-        iso_bytes = iso.tl2bytes(tl, record_struct=record_struct)
+        iso_bytes = record_struct.build(tl2con(tl, ftf))
         iso_output.write(iso_bytes)
         iso_output.flush()
 
@@ -695,11 +700,12 @@ def mst2csv(mst_input, csv_output, mst_encoding, cmode, utf8_fix, **kwargs):
 @main.command()
 @apply_decorators(*mst_options)
 @csv_mode_option
+@field_tag_format_option
 @apply_decorators(*subfield_options)
 @subfield_unparse_check_option
 @file_arg_enc_option("csv", "r", DEFAULT_CSV_ENCODING)
 @file_arg_enc_option("mst", OUTPUT_PATH, mst.DEFAULT_MST_ENCODING)
-def csv2mst(csv_input, mst_output, mst_encoding, cmode, **kwargs):
+def csv2mst(csv_input, mst_output, mst_encoding, cmode, ftf, **kwargs):
     """CSV to ISIS/FFI Master File Format."""
     sfp = kw_call(SubfieldParser, **kwargs, check=kwargs["sfcheck"])
     mst_sc = kw_call(mst.StructCreator, **kwargs)
@@ -711,7 +717,8 @@ def csv2mst(csv_input, mst_output, mst_encoding, cmode, **kwargs):
         prepend_mfn=True,
     )
     with open(mst_output, "wb") as mst_file:
-        mst_sc.build_stream(map(mst.tl2con, tl_gen), mst_file)
+        con_gen = (tl2con(tl, ftf) for tl in tl_gen)
+        mst_sc.build_stream(con_gen, mst_file)
 
 
 @main.command()
@@ -741,11 +748,12 @@ def iso2csv(iso_input, csv_output, iso_encoding, cmode, utf8_fix, **kwargs):
 @main.command()
 @apply_decorators(*iso_options)
 @csv_mode_option
+@field_tag_format_option
 @apply_decorators(*subfield_options)
 @subfield_unparse_check_option
 @file_arg_enc_option("csv", "r", DEFAULT_CSV_ENCODING)
 @file_arg_enc_option("iso", "wb", iso.DEFAULT_ISO_ENCODING)
-def csv2iso(csv_input, iso_output, iso_encoding, cmode, **kwargs):
+def csv2iso(csv_input, iso_output, iso_encoding, cmode, ftf, **kwargs):
     """CSV to ISO2709."""
     record_struct = kw_call(iso.create_record_struct, **kwargs)
     sfp = kw_call(SubfieldParser, **kwargs, check=kwargs["sfcheck"])
@@ -757,7 +765,7 @@ def csv2iso(csv_input, iso_output, iso_encoding, cmode, **kwargs):
         prepend_mfn=False,
     )
     for tl in tl_gen:
-        iso_bytes = iso.tl2bytes(tl, record_struct=record_struct)
+        iso_bytes = record_struct.build(tl2con(tl, ftf))
         iso_output.write(iso_bytes)
         iso_output.flush()
 
