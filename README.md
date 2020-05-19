@@ -1,18 +1,85 @@
 # IOISIS - I/O tools for converting ISIS data in Python
 
-This is a Python library with a command line interface
+This is a Python library with a command line interface (CLI)
 intended to access data from ISIS database files
 and convert among distinct file formats.
 
-The `bruma-mst2jsonl` command and the `bruma` module
-uses a pre-compiled version
+The converters available in the CLI are:
+
+|  **Command**      | **Description**                           |
+|:-----------------:|:-----------------------------------------:|
+| `bruma-mst2csv`   | MST+XRF to CSV based on Bruma             |
+| `bruma-mst2jsonl` | MST+XRF to JSON Lines based on Bruma      |
+| `csv2iso`         | CSV to ISO2709                            |
+| `csv2jsonl`       | CSV to JSON Lines                         |
+| `csv2mst`         | CSV to ISIS/FFI Master File Format        |
+| `iso2csv`         | ISO2709 to CSV                            |
+| `iso2jsonl`       | ISO2709 to JSON Lines                     |
+| `jsonl2csv`       | JSON Lines to CSV                         |
+| `jsonl2iso`       | JSON Lines to ISO2709                     |
+| `jsonl2mst`       | JSON Lines to ISIS/FFI Master File Format |
+| `mst2csv`         | ISIS/FFI Master File Format to CSV        |
+| `mst2jsonl`       | ISIS/FFI Master File Format to JSON Lines |
+
+*Note*:
+The `bruma-*` commands and the `bruma` module
+use a specific pre-compiled version
 of [Bruma](https://github.com/scieloorg/Bruma)
 through [JPype](https://github.com/jpype-project/jpype),
-which requires the JVM.
+which requires the JVM (Java Virtual Machine).
 The `iso` and `mst` modules, as well as
-the `mst2jsonl`, `jsonl2mst`, `iso2jsonl` and `jsonl2iso` commands
+the other modules and CLI commands
 don't require Bruma.
 Bruma only gets downloaded in its first use.
+
+The Python-based alternative to Bruma
+was created from scratch,
+and it's based on [Construct](https://github.com/construct/construct),
+a Python library that allows a declarative implementation
+of the binary file structures
+for both parsing and building.
+Currently,
+the ISO (ISO2709-based file format),
+the MST (ISIS/FFI Master file format) and
+the XRF (ISIS/FFI Cross-reference file format)
+file formats can be parsed/built with the library,
+but the XRF files aren't used nor built
+by the Bruma-independent library/CLI.
+
+Most details regarding the parse/build process
+can be configured in both the library and the CLI,
+including the several variations of the MST file
+that are specific to CISIS.
+CISIS has a serialization behavior dependent of the architecture
+and of its compilation flags,
+but `ioisis` can deal with most (perhaps all)
+the distinct MST "file formats" that can be generated/read
+by some specific CISIS version.
+
+Everything in `ioisis` is platform-independent,
+and most of its defaults are based on the *lindG4* version of CISIS,
+and on the [isis2json](https://github.com/scieloorg/isis2json)
+*MongoDB type 1* (`-mt1`) output.
+The `--xylose` option of several CLI commands
+switches the JSONL defaults to use the dictionary structure
+expected by [Xylose](https://github.com/scieloorg/xylose).
+
+
+## Installation and testing
+
+It requires Python 3.6+,
+and it's prepared to be tested in every Python version
+with [tox](https://github.com/tox-dev/tox)
+and [pytest](https://pytest.org).
+
+```bash
+# Installation
+pip install ioisis
+
+# Testing (one can install tox with "pip install tox")
+tox                      # Test on all Python versions
+tox -e py38 -- -k scanf  # Run "scanf" tests on Python 3.8
+```
 
 
 ## Command Line Interface (CLI)
@@ -24,28 +91,46 @@ Examples:
 # Convert file.mst to a JSONL in the standard output stream
 ioisis mst2jsonl file.mst
 
-# Convert file.iso to an ASCII file.jsonl
-ioisis iso2jsonl --jenc ascii file.iso file.jsonl
+# Convert file.iso in UTF-8 to an ASCII file.jsonl
+ioisis iso2jsonl --ienc utf-8 --jenc ascii file.iso file.jsonl
 
 # Convert file.jsonl to file.iso where the JSON lines are like
 # {"tag": ["field", ...], ...}
 ioisis jsonl2iso file.jsonl file.iso
 
+# Convert big-endian lindG4 MST data to CSV (one line for each field)
+# ignoring noise in the MST file that might appear between records
+# (it can access data from corrupt MST files)
+ioisis mst2csv --ibp ignore --be file.mst file.csv
+
 # Convert active and logically deleted records from file.mst
-# to file.iso, selecting records and filtering out fields with jq
-ioisis mst2jsonl --all file.mst \
-| jq -c 'select(.["35"] == ["PRINT"]) | del(.["901"]) | del(.["540"])'
-| ioisis jsonl2iso - file.iso
+# to filtered.mst, selecting records and filtering out fields with jq,
+# using a "v" prefix to the field tags,
+# reseting the MFN to 1, 2, etc. while keeping its order
+# instead of using the in-file order, besides enforcing a new encoding,
+# with a file that might already have some records partially in UTF-8
+ioisis bruma-mst2jsonl --all --ftf v%z --menc latin1 --utf8 file.mst \
+| jq -c 'select(.v35 == ["PRINT"]) | del(.v901) | del(.v540)'
+| ioisis jsonl2mst --ftf v%z --menc latin1 - filtered.mst
 ```
 
 By default, the input and output are the standard streams,
-but the `bruma-mst2jsonl` MST input and the `jsonl2mst` MST output
-must be a file name, not a pipe/stream.
-For the former command,
-the matching XRF will be found based on the file name.
-For the latter,
-the control record is created at the end,
-which makes the random access a requirement.
+but some commands require a file name, not a pipe/stream.
+Bruma requires the MST input to be a file name
+since the XRF will be found based on it
+(only the `bruma-*` commands require XRF).
+The `*2mst` commands require a file name for the MST output
+because the first record of it (the control record)
+has some information that will be available
+only after generating the entire file (i.e., it's created at the end),
+this makes the random access a requirement.
+
+All commands have an alias:
+their names with only the first character of the extension
+(or `b` for `bruma-`).
+Try `ioisis --help` for more information about all commands
+and `ioisis csv2mst --help` for the specific `csv2mst` help
+(every command has its own help).
 
 There are several other options to these commands
 intended to customize the process,
