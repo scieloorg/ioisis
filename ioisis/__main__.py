@@ -31,6 +31,18 @@ def apply_decorators(*decorators):
     return lambda func: reduce(lambda f, d: d(f), decorators[::-1], func)
 
 
+def change_defaults(**kwargs):
+    """Callback function factory for changing parameter defaults
+    in a click command.
+    """
+    def callback_function(ctx, param, value):
+        if ctx.default_map is None:
+            ctx.default_map = {}
+        if value:
+            ctx.default_map.update(kwargs)
+    return callback_function
+
+
 def option(*args, **kwargs):
     """Same to click.option, but saves the args/kwargs for filtering."""
     result = click.option(*args, **kwargs)
@@ -530,6 +542,16 @@ utf8_fix_option = click.option(
 )
 
 
+xylose_option = click.option(
+    "--xylose",
+    is_eager=True,  # Because --mode is eager as well
+    is_flag=True,
+    expose_value=False,
+    callback=change_defaults(mode="inest", ftf="v%z"),
+    help='Same to "--mode=inest --ftf=v%z".',
+)
+
+
 @click.group()
 def main():
     """ISIS data converter using the ioisis Python library."""
@@ -544,6 +566,7 @@ def main():
 @apply_decorators(*metadata_filtering_options)
 @jsonl_mode_option
 @field_tag_format_option
+@xylose_option
 @apply_decorators(*subfield_options)
 @file_arg_enc_option("mst", INPUT_PATH, mst.DEFAULT_MST_ENCODING)
 @file_arg_enc_option("jsonl", "w", DEFAULT_JSONL_ENCODING)
@@ -565,6 +588,7 @@ def bruma_mst2jsonl(mst_input, jsonl_output, mst_encoding, mode, **kwargs):
 @apply_decorators(*metadata_filtering_options)
 @jsonl_mode_option
 @field_tag_format_option
+@xylose_option
 @apply_decorators(*subfield_options)
 @utf8_fix_option
 @file_arg_enc_option("mst", "rb", mst.DEFAULT_MST_ENCODING)
@@ -584,6 +608,7 @@ def mst2jsonl(mst_input, jsonl_output, mst_encoding, mode, utf8_fix, **kwargs):
 @apply_decorators(*mst_options)
 @jsonl_mode_option
 @field_tag_format_option
+@xylose_option
 @apply_decorators(*subfield_options)
 @subfield_unparse_check_option
 @file_arg_enc_option("jsonl", "r", DEFAULT_JSONL_ENCODING)
@@ -609,6 +634,7 @@ def jsonl2mst(jsonl_input, mst_output, mst_encoding, mode, ftf, **kwargs):
 @apply_decorators(*metadata_filtering_options)
 @jsonl_mode_option
 @field_tag_format_option
+@xylose_option
 @apply_decorators(*subfield_options)
 @utf8_fix_option
 @file_arg_enc_option("iso", "rb", iso.DEFAULT_ISO_ENCODING)
@@ -628,6 +654,7 @@ def iso2jsonl(iso_input, jsonl_output, iso_encoding, mode, utf8_fix, **kwargs):
 @apply_decorators(*iso_options)
 @jsonl_mode_option
 @field_tag_format_option
+@xylose_option
 @apply_decorators(*subfield_options)
 @subfield_unparse_check_option
 @file_arg_enc_option("jsonl", "r", DEFAULT_JSONL_ENCODING)
