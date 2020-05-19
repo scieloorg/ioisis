@@ -591,7 +591,7 @@ def main():
 @file_arg_enc_option("mst", INPUT_PATH, mst.DEFAULT_MST_ENCODING)
 @file_arg_enc_option("jsonl", "w", DEFAULT_JSONL_ENCODING)
 def bruma_mst2jsonl(mst_input, jsonl_output, mst_encoding, mode, **kwargs):
-    """MST+XRF to JSON Lines based on a Bruma (requires Java)."""
+    """MST+XRF to JSON Lines based on Bruma (requires Java)."""
     ensure_ascii = jsonl_output.encoding.lower() == "ascii"
     kwargs_menc = {key: kwargs[key].decode(mst_encoding)
                    for key in ["prefix", "first"]}
@@ -705,7 +705,7 @@ def jsonl2iso(jsonl_input, iso_output, iso_encoding, mode, ftf, **kwargs):
 @file_arg_enc_option("mst", INPUT_PATH, mst.DEFAULT_MST_ENCODING)
 @file_arg_enc_option("csv", "w", DEFAULT_CSV_ENCODING)
 def bruma_mst2csv(mst_input, csv_output, mst_encoding, cmode, **kwargs):
-    """MST+XRF to CSV based on a Bruma (requires Java)."""
+    """MST+XRF to CSV based on Bruma (requires Java)."""
     kwargs["prepend_mfn"] = True
     kwargs_menc = {key: kwargs[key].decode(mst_encoding)
                    for key in ["prefix", "first"]}
