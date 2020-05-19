@@ -41,22 +41,6 @@ DEFAULT_CONTROL_LEN = 64
 DEFAULT_IBP = "check"
 
 
-def tl2con(tl):
-    """Create a record dict that can be used for MST building
-    from a single tidy list record."""
-    container = {
-        "dir": [],
-        "fields": [],
-    }
-    for k, v in tl:
-        if k == b"mfn":
-            container["mfn"] = int(v)
-        else:
-            container["dir"].append({"tag": int(k)})
-            container["fields"].append(v)
-    return container
-
-
 def pad_size(modulus, size):
     """Calculate the padding size for the given size in a modulus grid."""
     return (modulus * (size // modulus + 1) - size) % modulus

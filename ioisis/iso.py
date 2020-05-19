@@ -205,15 +205,3 @@ def dict2bytes(
             record_dict["dir"].append({"tag": k.encode("ascii").zfill(3)})
             record_dict["fields"].append(v.encode(encoding))
     return record_struct.build(record_dict)
-
-
-def tl2bytes(tl, record_struct=DEFAULT_RECORD_STRUCT):
-    """Encode/build the raw ISO string from a single tidy list record."""
-    container = {
-        "dir": [],
-        "fields": [],
-    }
-    for k, v in tl:
-        container["dir"].append({"tag": k.zfill(3)})
-        container["fields"].append(v)
-    return record_struct.build(container)
