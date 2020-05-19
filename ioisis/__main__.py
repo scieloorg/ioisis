@@ -552,9 +552,29 @@ xylose_option = click.option(
 )
 
 
-@click.group()
+class ShortNameAliasGroup(click.Group):
+
+    def get_command(self, ctx, cmd_name):
+        names = self.list_commands(ctx)
+        if cmd_name in names:
+            return super().get_command(ctx, cmd_name)
+        alias_map = {
+            "".join(el[0] for el in name.replace("2", "-2-").split("-")): name
+            for name in names
+        }
+        if cmd_name in alias_map:
+            return super().get_command(ctx, alias_map[cmd_name])
+
+
+@click.command(cls=ShortNameAliasGroup)
 def main():
-    """ISIS data converter using the ioisis Python library."""
+    """ISIS data converter using the ioisis Python library.
+
+    All command names can also be called by using only the first letter
+    of the file formats they're describing
+    (e.g. "m2j" instead of "mst2jsonl"),
+    where "bruma-" gets replaced by a single "b".
+    """
     try:  # Fix BrokenPipeError by opening a new fake standard output
         signal.signal(signal.SIGPIPE,
                       lambda signum, frame: setattr(sys, "stdout", BytesIO()))
