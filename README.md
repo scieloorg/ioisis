@@ -593,37 +593,145 @@ whose value can be:
 
 ## Library
 
-To load ISIS data, you can use the `iter_records` function
-of the respective module:
+A common data structure in the library for representing a single record
+is the *tidy list of tag-value pairs*, or **tl**.
+It doesn't have anything to do with the `tidy`/`stidy` JSONL/CSV modes,
+it's just a way to store the data
+avoiding the scattered structure of the raw record container.
+To load data with the library:
 
 ```python
-from ioisis import bruma, iso
+from ioisis import bruma, iso, mst, fieldutils
 
-# For MST files with Bruma, you must use the filename
-for record_dict in bruma.iter_records("file.mst"):
+# In the mst module, you must create a StructCreator instance
+mst_sc = mst.StructCreator(ibp="store")
+with open("file.mst", "rb") as raw_mst_file:
+    for raw_tl in mst_sc.iter_raw_tl(raw_mst_file):
+        tl = fieldutils.nest_decode(raw_tl, encoding="cp1252")
+        ...
+
+# For bruma.iter_tl the input must be a file name
+for tl in bruma.iter_tl("file.mst", encoding="cp1252"):
+    raw_tl = fieldutils.nest_encode(raw_tl, encoding="utf-8")
     ...
 
-# For ISO files, you can either use a file name
+# The idea is similar for an ISO file, but ...
+for raw_tl in iso.iter_raw_tl("file.iso"):
+    tl = utf8_fix_nest_decode(raw_tl, encoding="latin1")
+    ...
+
+# ... for ISO files, you can always use either a file name
 # or any file-like object open in "rb" mode
 with open("file.iso", "rb") as raw_iso_file:
-    for record_dict in iso.iter_records(raw_iso_file):
+    for tl in iso.iter_tl(raw_iso_file, encoding="latin1"):
         ...
 ```
 
-See also the `iter_raw_tl` functions and the `mst.StructCreator` class
-for more information on how to load data in a more customized way.
+The following generator functions/methods
+are the ones that appeared in the example above:
 
-One can generate a single ISO record from a dict of data:
+* `mst.StructCreator.iter_raw_tl`: Read MST keeping data in bytestrings
+* `iso.iter_raw_tl`: Read ISO keeping data in bytestrings
+* `bruma.iter_tl`: Read MST already decoding its contents
+* `iso.iter_tl`: Read ISO already decoding its contents
+
+It's worth noting that the following functions
+from the `fieldutils` module
+allows encoding/decoding all record fields/subfields at once:
+
+* `nest_encode`
+* `nest_decode`
+* `utf8_fix_nest_decode`
+
+The latter is the same to `nest_decode`,
+but uses the given encoding as a fallback,
+trying first to decoded all the contents as UTF-8.
+
+What's the content of a single decoded *tl*?
+It's a list of `[tag, value]` pairs (as lists or tuples), like:
+
+```raw
+[["5", "S"],
+ ["6", "c"],
+ ["10", "br1.1"],
+ ["62", "Example Institute"]]
+```
+
+One can generate a single ISO record from a *tl*:
 
 ```python
->>> from ioisis import iso
+>>> from ioisis import iso, fieldutils
+>>> tl = [["1", "test"], ["8", "it"]]
+>>> raw_tl = fieldutils.nest_encode(tl, encoding="utf-8")
+>>> raw_tl
+[[b'1', b'test'], [b'8', b'it']]
+>>> con = fieldutils.tl2con(raw_tl, ftf=iso.DEFAULT_ISO_FTF)
+>>> con
+{'dir': [{'tag': b'001'}, {'tag': b'008'}], 'fields': [b'test', b'it']}
+>>> iso.DEFAULT_RECORD_STRUCT.build(con)
+b'000580000000000490004500001000500000008000300005#test#it##\n'
+
+```
+
+The process to create records is to convert them to the
+*internal [construct] container format* (or simply **con**),
+which is done by `fieldutils.tl2con`.
+To create an MST file,
+you can use the `build_stream` method of the `mst.StructCreator`,
+whose first parameter should be a generator of *con* instances,
+and the second is the seekable file object.
+
+There's still a third format, called the *record dict* format,
+which is based on the JSONL "`--mode=field`" output format.
+It has less resources available internally to the library
+when compared with the abovementioned alternative,
+but it might be simpler to use in some cases:
+
+```python
 >>> iso.dict2bytes({"1": ["testing"], "8": ["it"]})
+b'000610000000000490004500001000800000008000300008#testing#it##\n'
+
+# The same, but from the tl
+>>> tl = [["1", "testing"], ["8", "it"]]
+>>> record = fieldutils.tl2record(tl)
+>>> iso.dict2bytes(record)
 b'000610000000000490004500001000800000008000300008#testing#it##\n'
 
 ```
 
-See also the `mst.StructCreator.build_stream` method
-for information on how to create MST files.
+To load ISIS data from `bruma` or `iso`,
+you can also use the `iter_records` function
+of the respective module,
+but it's more customizable
+if you use the `fieldutils` converter functions:
+
+* `record2tl`
+* `tl2record`
+* `tl2con`
+
+Perhaps the simplest way to understand the behavior of the library
+is to use the CLI and to check the code of the called command.
+
+
+### Modules
+
+The modules available in the `ioisis` package are:
+
+| **Module**    | **Content**                                         |
+|:-------------:|:---------------------------------------------------:|
+| `bruma`       | Everything about MST file processing based on Bruma |
+| `ccons`       | Custom construct classes                            |
+| `fieldutils`  | Field/subfield processing functions and classes     |
+| `iso`         | ISO parsing/building stuff tools on construct       |
+| `java`        | Java interfacing resources based on JPype1          |
+| `mst`         | MST/XRF parsing/building tools based on construct   |
+| `streamutils` | Classes for precise file/pipe processing            |
+| `__main__`    | CLI (Command Line Interface)                        |
+
+Usually, the only modules one would need from `ioisis`
+to use it as a library
+are `iso`, `mst`, `bruma` and `fieldutils`,
+the remaining modules can be seen as internal stuff.
 
 By default, the `mst` module doesn't use/create XRF files.
 One can create/load XRF data using the struct created by
