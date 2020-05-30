@@ -132,10 +132,29 @@ Try `ioisis --help` for more information about all commands
 and `ioisis csv2mst --help` for the specific `csv2mst` help
 (every command has its own help).
 
-There are several other options to these commands
+The encoding of all files are explicit through a `--_enc` option,
+where the `_` should be replaced
+by the first letter of the file extension,
+hence `--menc` has the MST encoding,
+`--cenc` the CSV encoding,
+and so on.
+For the `bruma-*` commands, the `--menc` is handled in Java,
+all other encoding options are handled in Python.
+The `--utf8` option forces the input to be handled as UTF-8,
+and only the parts of it that aren't in such encoding
+are handled by the specific file format encoding,
+that is, the `--_enc` option become a fallback for UTF-8.
+This helps loading data from databases with mixed encoding data.
+
+
+### JSON/CSV mode, field and subfield processing
+
+There are several other options to the CLI commands
 intended to customize the process,
 perhaps the most important of these options
-is the `-m/--mode`, which regards to the JSONL field format.
+is the `-m/--mode`,
+which regards to the field and record formats in JSONL files
+(and the `-M/--cmode`, which does the same for CSV files).
 The valid values for it are:
 
 * `field` (*default*):
@@ -144,7 +163,8 @@ The valid values for it are:
   Split the field string as an array of `[key, value]` subfield pairs
 * `nest`:
   Split the field string as a `{key: value}` object,
-  keeping the last subfield value when the key appears more than once
+  keeping the last subfield value of a key
+  when the key appears more than once
 * `inest`:
   CISIS-like subfield nesting processing, similar to the `nest`,
   but keeps the first entry with the key instead of the last one
@@ -165,9 +185,410 @@ the `field`, `pairs` and `nest` modes are respectively similar
 to the `-mt1`, `-mt2` and `-mt3` options of `isis2json`.
 The `inest` mode isn't available in `isis2json`,
 it follows the CISIS behavior on subfield querying instead.
+For CSV, only the `tidy` and `stidy` formats are available,
+given that the remaining formats aren't tabular.
+
+The `--ftf` is an option that expects a *field tag formatter* template
+for processing the field tag, and it's the same
+for both JSON/CSV output (rendering/building) and input (parsing).
+These are the interpreted sequences:
+
+* `%d`: Tag number
+* `%r`: Tag as a string in its raw format.
+* `%z`: Same to `%r`, but removes the leading zeros from ISO tags
+* `%i`: Field index number in the record, starting from zero
+* `%%`: Escape for the `%` character
+
+*Note*:
+`%d` and `%i` options might have a numeric parameter in the middle
+like the `printf`'s `%d` (e.g. recall `"%03d" % 15` in Python).
+
+For the subfield processing, there are several options available:
+
+* `--prefix`:
+  Character/string that starts a new subfield in the field text
+* `--length`:
+  Size of the subfield key/tag (number of characters)
+* `--lower/--no-lower`:
+  Toggle for the normalization of the subfield key/tag,
+  which is performed by simply lowering their case
+* `--first`:
+  The subfield key/tag to be used by the leading field data
+  before the first prefix appears
+* `--empty/--no-empty`:
+  Toggle to show/hide the subfields with no characters at all
+  (apart from the subfield key/tag)
+* `--number/--no-number`:
+  Repeated subfield keys are handled by adding a number suffix to them,
+  starting from `1` in the first repeat,
+  and this option toggles this behavior (to add the suffix or not)
+* `--zero/--no-zero`:
+  Choose if the first occurrence of each subfield key in a field
+  should have a `0` suffix
+  to follow the numbering described in the previous option
+  (it has no effect when `--no-number`)
+* `--sfcheck/--no-sfcheck` (for JSONL/CSV input only):
+  Check if the specification of the subfield parsing/unparsing rules
+  given in the previous parameters would resynthesize all input fields
+  exactly in the way they appear
+
+The `--xylose` option
+is just an alternative way of using "`--mode=inest --ftf=v%z`".
+To be more similar
+to the [isis2json](https://github.com/scieloorg/isis2json) output
+while still making use of the format expected by
+[Xylose](https://github.com/scieloorg/xylose),
+you should use instead "`--mode=nest --no-number --ftf=v%z`".
 
 
-Try `ioisis --help` for more information.
+### Common MST/ISO input options
+
+Both MST and ISO records have a STATUS flag,
+which answers this question: *is this record logically deleted*?
+STATUS equals to 1 means True (*deleted*), 0 means False (*active*).
+
+Every record in the MST file structure has an MFN,
+a serial number/ID of the record in the database.
+A major difference between the `bruma-mst2*` commands
+and the `mst2*` ones
+is in the way they handle the MFN:
+Bruma always access the MST file through the XRF file,
+jumping the addresses to iterate through the records
+sorting them by MFN,
+whereas the Python implementation gets the records
+in their block/offset order
+(i.e., the order they appear in the input file).
+For ISO files, there's no MFN stored,
+but `ioisis` can generate it (starting from 1, like common MST records)
+if they're required (e.g. for creating CSV files).
+
+These options are common to several commands
+when reading from MST or ISO files:
+
+* `--only-active/--all`:
+  Flag to select if the STATUS=1 records (logically deleted records)
+  should be in the output or not
+* `--prepend-mfn/--no-mfn`:
+  Add an artificial field `mfn` at the beginning of each record
+  with the record MFN as a string (though it's always a number)
+* `--prepend-status/--no-status`
+  Add an artificial field `status` at the beginning of each record
+  with the record STATUS as a string
+  (though it's usually just zero or one)
+
+
+### ISO-specific options
+
+The ISO file can be seen as just a sequence of records glued together.
+Each record has 3 parts: a *leader*, a *directory* and *field values*.
+The *leader* has some metadata,
+most of them only accessible through the library, not the CLI
+(only the STATUS is used by the CLI).
+The *directory* is a sequence of constant-sized structures
+(*directory items*),
+each of them representing a single field
+(its tag, its value length and its relative offset),
+which is matched with its respective value
+in the last part of the record.
+
+Internally to the ISO file,
+after the directory and between each field value,
+there's a **field terminator**.
+At the end of the record, there's both a **field terminator**
+and, finally, a **record terminator**.
+By default, CISIS uses the "`#`" as the terminator,
+the same one for field and record,
+and that's also the `ioisis` default.
+But it's not always the case for input/output files.
+For example, in the MARC21 specifications
+the field terminator is the "`\x1e`" character
+and the record terminator is the "`\x1d`" character.
+
+These are the options for ISO I/O commands:
+
+* `--ft`:
+  ISO Field terminator
+* `--rt`:
+  ISO Record terminator
+* `--line`:
+  Line length for splitting a record (not counting the EOL)
+* `--eol`:
+  End of line (EOL) character or string, ignored if `--line=0`
+
+The default values for them are the CISIS ones,
+which are intended to make it possible to see the ISO file
+as a common text file.
+By default, every ISO record (raw bytes)
+is splitten into lines of 80 bytes,
+and an EOL gets printed after the record terminator,
+so two records won't share the same line.
+The line splitting is a CISIS-specific behavior,
+it's required in order to open the ISO files it exports,
+and it might make debugging easier.
+Using "`--line=0`" disables this behavior,
+joining everything as a single huge line.
+The terminators might have more than one character, as well as the EOL,
+and these 3 parameters (like other inputs shown as *BYTES* in the help)
+are parsed by the CLI,
+so "`\t`" is recognized as the TAB character
+and "`\n`" as a LF (Line Feed).
+
+
+### MST-specific options (Python/construct)
+
+The options shown here regards to the Python implementation
+of the MST file format builder/parser,
+these are not available for the `bruma-*` commands.
+
+The ISIS/FFI Master File Format (MST file) structure
+is a binary file divided as joined records.
+The overall structure of it is documented in the *Appendix G*
+of the [Mini-micro CDS/ISIS: reference manual (version 2.3)](
+  https://unesdoc.unesco.org/ark:/48223/pf0000211280
+), however it's incomplete,
+several enhancements had been done in the file structure
+in order to make it possible to fit more data in these databases.
+Nevertheless, the MST file is still a file with joined records,
+where each record has 3 blocks: leader, directory and field values.
+It's similar to an ISO file with an empty field and record terminator,
+but the leader and directory items are binary,
+the metadata isn't the same,
+and the padding, alignment and sizes are quite hard to properly grasp.
+
+This is the internal structure of the leader and a directory item
+in a single record of a MST file
+(it doesn't apply to the control record):
+
+```raw
+                   -------------------------------------------------
+                  |    Format | ISIS     ISIS     FFI      FFI      |
+                  | Alignment | 2        4        2        4        |
+ -----------------------------+-------------------------------------|
+|         Leader size (bytes) | 18       20       22       24       |
+| Directory item size (bytes) | 6        6        10       12       |
+|-----------------------------+-------------------------------------|
+|           |      00-01      | MFN.1    MFN.1    MFN.1    MFN.1    |
+|           |      02-03      | MFN.2    MFN.2    MFN.2    MFN.2    |
+|           |      04-05      | MFRL     MFRL     MFRL.1   MFRL.1   |
+|           |      06-07      | MFBWB.1  (filler) MFRL.2   MFRL.2   |
+|           |      08-09      | MFBWB.2  MFBWB.1  MFBWB.1  MFBWB.1  |
+|  Leader   |      10-11      | MFBWP    MFBWB.2  MFBWB.2  MFBWB.2  |
+|           |      12-13      | BASE     MFBWP    MFBWP    MFBWP    |
+|           |      14-15      | NVF      BASE     BASE.1   (filler) |
+|           |      16-17      | STATUS   NVF      BASE.2   BASE.1   |
+|           |      18-19      |          STATUS   NVF      BASE.2   |
+|           |      20-21      |                   STATUS   NVF      |
+|           |      22-23      |                            STATUS   |
+|-----------+-----------------+-------------------------------------|
+|           |      00-01      | TAG      TAG      TAG      TAG      |
+|           |      02-03      | POS      POS      POS.1    (filler) |
+| Directory |      04-05      | LEN      LEN      POS.2    POS.1    |
+|   item    |      06-07      |                   LEN.1    POS.2    |
+|           |      08-09      |                   LEN.2    LEN.1    |
+|           |      10-11      |                            LEN.2    |
+ -----------+-----------------+-------------------------------------|
+            |  Offset (bytes) |              Structure              |
+             -------------------------------------------------------
+```
+
+These structure names follow the Mini-micro CDS/ISIS reference manual,
+where the "`.1`" and "`.2`" suffixes are there to expose
+where the field has 4 bytes, otherwise the field has just 2 bytes.
+The starting offset of every field must be
+an integer multiple of the alignment number, hence the fillers.
+The endianness don't change the position of any of these fields,
+it just change the order of the 2 or 4 bytes of the field itself
+(where *little* endian, known as "swapped" in CISIS,
+means that the last byte of the data
+is at the *lowest* address/offset).
+Most of that structure shown up to now
+can be controlled through three parameters:
+the **Format**, the **Intra-record alignment** and the **Endianness**.
+These are the two possible formats:
+
+* *ISIS file format*:
+  The original standard documented in the reference manual
+* *FFI file format*:
+  An alternative to overcome the record size of 16 bytes (MFRL),
+  doubling it and all the other fields that has something to do
+  with the internal offsets of a record
+
+These are the MST-specific options
+that control the main structure of its records:
+
+* `--end`:
+  Tells whether the bytes of each field are `big` or `little` endian,
+  the `--le` and `--be` are shorthands for these, respectively
+* `--format`:
+  Choose the `isis` or `ffi` file format,
+  the `--isis` and `--ffi` are shorthands for these
+* `--packed/--unpacked`:
+  These control the leader/directory alignment,
+  *packed* means that their alignment is 2,
+  whereas *unpacked* means that their aligment is 4.
+
+The MST file has a leading record called the *Control record*,
+whose MFN (*Master file number*, here *file* stands for a record)
+is zero.
+It has this 32-bytes structure
+(apart from a trailing filler of 32 bytes in CISIS):
+
+```raw
+ -----------------------------
+|  Offset (bytes) | Structure |
+|-----------------+-----------|
+|      00-01      | CTLMFN.1  |
+|      02-03      | CTLMFN.2  |
+|      04-05      | NXTMFN.1  |
+|      06-07      | NXTMFN.2  |
+|      08-09      | NXTMFB.1  |
+|      10-11      | NXTMFB.2  |
+|      12-13      | NXTMFP    |
+|      14-15      | TYPE      |
+|      16-17      | RECCNT.1  |
+|      18-19      | RECCNT.2  |
+|      20-21      | MFCXX1.1  |
+|      22-23      | MFCXX1.2  |
+|      24-25      | MFCXX2.1  |
+|      26-27      | MFCXX2.2  |
+|      28-29      | MFCXX3.1  |
+|      30-31      | MFCXX3.2  |
+ -----------------------------
+```
+
+The most important field in there is the TYPE shown above,
+which is written as MFTYPE in the CDS/ISIS reference manual,
+but the TYPE has actually two single-byte fields in it,
+and the order of these two
+is the only multi-field scenario that depends on the endianness:
+
+* MSTXL *(most significant byte)*:
+  The offset *shift* in all XRF entries (to be discussed)
+* MFTYPE *(least significant byte)*:
+  The master file type (should always be zero for user database files)
+
+We've already seen the intra-record differences
+among distinct MST file formats,
+but the overall structure itself has differences.
+A really important parameter for the overall MST file structure is the
+**Inter-record alignment**.
+Some details about the overall file structure and alignment are:
+
+* The file is divided as 512-bytes *blocks*,
+  and the last block should be filled up to the end
+* The first record must be the control record
+* The records are simply stacked one after another,
+  but with alignment constraints:
+  * The BASE and MFN fields of a record must be in the same block
+  * The record itself should have an alignment of 2 bytes
+    (word alignment, the ISIS default for inter-record alignment)
+
+The *shift* name comes from the XRF file structure,
+which has just 32 bytes
+to store both the block, the offset and some flags.
+The XRF should be capable of pointing to the address of every record
+in the MST file,
+hence some "bit twiddling" must be done to enable larger MST files.
+This had been done through the MSTXL field,
+which represents the *shift*,
+the number of times we must *bit-shift the offset to the right*.
+Doing so we lose the least significant bits,
+hence our offsets should always be aligned to "2^shift"
+(two raised to the power of *shift*).
+That's the main inter-record alignment constraint we have.
+
+These are the MST-specific options
+regarding the inter-record alignment:
+
+* `--control-len`:
+  Length of the control record, in bytes,
+  to control the first filler size
+* `--shift` (MST file output only):
+  The MSTXL value,
+  telling the inter-record alignment should be of at least
+  *2 raised to the power of MSTXL* bytes
+* `--shift4is3/--shift4isnt3`:
+  Toggle if MSTXL equals to 3 in a file or in `--shift`
+  should be regarded as 4,
+  it's a historical behavior of CISIS
+* `--min-modulus`:
+  The minimum inter-record alignment, in bytes (2 by default).
+  This option makes it possible to bypass the standard word alignment,
+  "`--min-modulus=1 --shift=0`" would make MST files
+  with byte-alignment (i.e., with no inter-record padding/filler)
+
+There are three locking mechanisms in ISIS
+that might be stored in an MST file:
+
+- EWLOCK *(Exclusive Write Lock)*:
+  It's a flag, stored in MFCXX3 (control record)
+- DELOCK *(Data Entry Lock)*:
+  It's a counter, stored in MFCXX2 (control record),
+  of how many records are locked at once
+- RLOCK *(Record Lock)*:
+  It's the sign of the MFRL (record length) of every record
+  (the record size is actually the absolute value of MFRL)
+
+Usually these makes no difference when the ISIS is just a static file
+that no process is modifying,
+and the `ioisis` CLI ignores the EWLOCK and DELOCK
+(they can be accessed by `ioisis` as a library, though).
+There's one option in `ioisis` to enable/disable
+the interpretation of all these locks,
+and it's exposed to the CLI since it affects the RLOCK:
+
+* `--lockable/--no-locks`:
+  Control if the MFRL should be signed (lockable)
+  or unsigned (no RLOCK, doubling the record length limit)
+
+Several are the fillers (padding characters)
+that might appear in the MST file
+due to the several alignment constraints.
+Another issue with the MST file
+is that it doesn't have one single filler for all these cases,
+and perhaps some tool in some specific architecture
+might behave differently.
+As the parser is strict (i.e., it checks the alignment and fillers),
+some of these might need to be tuned before loading the MST file,
+and these are the commands that makes that possible:
+
+* `--filler`:
+  Default filler for unset filler options, but the record filler
+* `--record-filler`:
+  For the trailing record data, after the last field value
+  (the default is a whitespace)
+* `--control-filler`:
+  For the trailing bytes of the control record
+* `--slack-filler`:
+  For the leader/directory when `--unpacked`
+* `--block-filler`:
+  For the last bytes in a 512-bytes block
+  that don't belong to any record
+  (end of file or due to the "MFN+BASE in the same block" constraint)
+
+The filler options above have a single parameter,
+which should always be a 2-characters string
+with the filler byte code in hexadecimal.
+
+Finally, sometimes the input MST file is corrupt and can't be loaded,
+e.g. because the block filler isn't clean,
+or because a MFRL is smaller than the actual record data.
+Since the overall record structure has some internal constraints
+(sizes and offsets/addresses),
+`ioisis` can go ahead
+ignoring the next few bytes that makes no sense as a new record.
+To do so, one should call it with the *Invalid block padding* option
+(`--ibp`),
+whose value can be:
+
+* `check` (default):
+  The strict behavior, `ioisis` crashes when some invalid data appears
+  in some offset that should have a record
+* `ignore`:
+  Silently skips the invalid data
+* `store`:
+  Put the trailing information in an artificial `ibp` field
+  of the output, in hexadecimal
 
 
 ## Library
