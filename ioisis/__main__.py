@@ -249,7 +249,7 @@ field_tag_format_option = click.option(
     show_default=True,
     callback=lambda ctx, param, value:
         FieldTagFormatter(escape_decode(value.encode("ascii"))[0],
-                          int_tags="mst" in ctx.info_name),
+                          int_tags="mst" in ctx.command.name),
     help="Field tag format template for parsing/rendering. "
          "It can include: "
          "%d: tag as a number; "
