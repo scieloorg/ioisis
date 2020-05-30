@@ -203,6 +203,7 @@ jsonl_mode_option = click.option(
     type=click.Choice(["field", "pairs", "nest", "inest", "tidy", "stidy"],
                       case_sensitive=False),
     default="field",
+    show_default=True,
     callback=lambda ctx, param, value: setattr(ctx, "mode", value) or value,
     is_eager=True,
     help="Mode for JSONL record structure processing "
@@ -233,6 +234,7 @@ csv_mode_option = click.option(
     "--cmode", "-M",
     type=click.Choice(["tidy", "stidy"], case_sensitive=False),
     default="tidy",
+    show_default=True,
     help="Mode for CSV record structure processing, "
          "where a record is split in a tabular format "
          "with a line for each field (tidy) "
@@ -526,6 +528,7 @@ mst_ibp_option = click.option(
     "--ibp",
     type=click.Choice(["check", "ignore", "store"]),
     default=mst.DEFAULT_IBP,
+    show_default=True,
     help="Invalid block padding content/size, "
          "which might appear as a residual of some previous content "
          "when the MST file gets updated in place. "
