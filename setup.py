@@ -39,7 +39,7 @@ setuptools.setup(
     ],
     entry_points={"console_scripts": ["ioisis = ioisis.__main__:main"]},
     classifiers=[
-        "Development Status :: 2 - Pre-Alpha",
+        "Development Status :: 3 - Alpha",
         "Environment :: Console",
         "Environment :: Other Environment",
         "Intended Audience :: Science/Research",
