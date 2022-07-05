@@ -1,4 +1,4 @@
 click==7.1.2
 construct==2.10.56
 JPype1==0.7.5
-ujson==2.0.3
+ujson==5.4.0
